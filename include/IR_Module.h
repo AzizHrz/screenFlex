@@ -82,8 +82,19 @@ void IRHandler::setRecievedData(MyIRData& irData){
     receivedData=irData; 
 }
 uint8_t IRHandler::getTVStatus(uint16_t _delay){ 
+    
     delay(_delay); 
-    return digitalRead(_tvpin); 
+    uint8_t tmp = digitalRead(_tvpin);
+    MyLogF(INFO,"Reading TV status %d  ", tmp);
+    if ( tmp == 0 ){ 
+    MyLog(INFO,"THE TV IS ON   ");
+
+    }else { 
+    MyLog(INFO,"THE TV IS OFF  ");
+
+    }
+
+    return  tmp ; 
 }
 
 void IRHandler::PrintMyIRData( MyIRData& data){ 
@@ -173,6 +184,7 @@ void IRHandler::begin() {
     Serial.begin(115200);
     IrReceiver.begin(receivePin, ENABLE_LED_FEEDBACK);  // Initialize receiver
     IrSender.begin(_sendPin);  // Initialize sender
+    pinMode(_tvpin,INPUT);
     Serial.println("IR Receiver and Sender Initialized");
 }
 
