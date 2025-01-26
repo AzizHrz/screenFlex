@@ -1,5 +1,6 @@
 init_project: 
-	pio init --board esp32doit-devkit-v1
+	pio init
+
 generate_commands_json:
 	pio run -t compiledb
 monitor:
