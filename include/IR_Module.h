@@ -6,11 +6,10 @@
 #include <Arduino.h>
 #include <IRremote.hpp>
 #include <IRProtocol.h>
-// #include "IR_PIN_DEF.h" 
+#include "IR_PIN_DEF.h" 
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include "Mylog.h"
-#define IR_SEND_PIN
 
 #define DECODE_NEC          // Includes Apple and Onkyo. To enable all protocols, just comment/disable this line.
 #define _MICROS_PER_TICK 50
@@ -53,7 +52,13 @@ class IRHandler {
 public:
     void init_littleFS(); 
     void dump_data_stored(const char* filename);
-    IRHandler(uint8_t receivePin, uint8_t _sendPin, uint8_t tvpin);
+    IRHandler(uint8_t receivePin, uint8_t _sendPin, uint8_t tvpin){
+        
+        this->receivePin = receivePin;
+        this->_sendPin = _sendPin; // Use the member variable with underscore
+        this->_tvpin = tvpin;
+        this->receivedData.data_stored = false; // Initialize data_stored to false
+    }
     void begin();
     decode_type_t identifyProtocol(MyIRData& irData);
     void setRecievedData(MyIRData& irData);
@@ -71,31 +76,94 @@ public:
     void PrintMyIRData( MyIRData& data);
     void clear_file(const char* filename);
 
+    
 private:
     uint8_t receivePin;
-    uint8_t _sendPin;
+    uint8_t _sendPin; // Member variable with underscore
     uint8_t _tvpin;
 
     MyIRData receivedData; // Store the last received IR data
 };
 void IRHandler::setRecievedData(MyIRData& irData){ 
     receivedData=irData; 
-}
-uint8_t IRHandler::getTVStatus(uint16_t _delay){ 
     
-    delay(_delay); 
-    uint8_t tmp = digitalRead(_tvpin);
-    MyLogF(INFO,"Reading TV status %d  ", tmp);
-    if ( tmp == 0 ){ 
-    MyLog(INFO,"THE TV IS ON   ");
+}
+uint8_t IRHandler::getTVStatus(uint16_t checkDuration) {
+    // Disable IR receiver to prevent interference
+    IrReceiver.stop();
+    
+    // Configure pin properly (in case other code modified it)
+    pinMode(_tvpin, INPUT_PULLUP);
+    
+    const uint8_t requiredSamples = 3;
+    uint8_t consistentReadings = 0;
+    uint8_t lastState = digitalRead(_tvpin);
+    
+    uint32_t startTime = millis();
+    while (millis() - startTime < checkDuration) {
+        uint8_t currentState = digitalRead(_tvpin);
+        
+        if (currentState == lastState) {
+            consistentReadings++;
+            if (consistentReadings >= requiredSamples) {
+                break; // Stable state detected
+            }
+        } else {
+            lastState = currentState;
+            consistentReadings = 1;
+        }
+        
+        delay(20); // Short delay between samples
+    }
+    
+    // Re-enable IR receiver
+    IrReceiver.start();
+    
+    return (lastState == LOW) ? 1 : 0; // LOW = ON (1), HIGH = OFF (0)
 
-    }else { 
-    MyLog(INFO,"THE TV IS OFF  ");
 
+/*
+    const uint8_t requiredConsistentReadings = 3; // Number of stable readings
+    const uint16_t sampleInterval = 50;           // ms between samples
+
+    uint8_t lastStableState = !digitalRead(_tvpin); // Inverted: LOW = ON -> 1
+    uint8_t consistentCount = 1;
+
+    for (uint16_t elapsed = sampleInterval; elapsed < checkDuration; elapsed += sampleInterval) {
+        uint8_t currentState = !digitalRead(_tvpin);
+
+        if (currentState == lastStableState) {
+            consistentCount++;
+            if (consistentCount >= requiredConsistentReadings) {
+                return currentState; // Return when readings are stable
+            }
+        } else {
+            lastStableState = currentState;
+            consistentCount = 1; // Reset count with new state
+        }
+
+        delay(sampleInterval);
     }
 
-    return  tmp ; 
-}
+    // If no stable state detected in time, return the last observed state
+    return lastStableState;
+#########################################################
+    uint8_t getTVStatus(uint16_t timeout) {
+  // Add a small delay to avoid flooding the Serial Monitor
+  delay(checkDuration); // Adjust as needed
+  if (_tvpin == LOW) {
+    return 1; // TV is ON
+  } else {
+   return 0; // TV is OFF
+  }
+
+  
+}*/
+    
+    }
+
+
+
 
 void IRHandler::PrintMyIRData( MyIRData& data){ 
   Serial.println("------ MyIRData ------");
@@ -161,31 +229,45 @@ void IRHandler::dump_data_stored(const char* filename){
         }
         Serial.println("\n---------------------");
     file.close();
+
 }
+
 void IRHandler::init_littleFS(){ 
 
      if (!LittleFS.begin()) {
-        MyLog(ERROR,"Failed to initialize LittleFS");
+        Serial.println("[ERROR] Failed to initialize LittleFS");
         return ;
     } else { 
-        MyLog(INFO,"initialize LittleFS");
+        Serial.println("[INFO] LittleFS initialized successfully");
 
     }
 }
-IRHandler::IRHandler(uint8_t receivePin, uint8_t _sendPin,uint8_t tvpin)
-    : receivePin(receivePin), _sendPin(_sendPin), _tvpin(tvpin){
-    // Initialize pins
-    // pinMode(receivePin, INPUT);
-    // pinMode(sendPin, OUTPUT);
-}
+
+
 
 // Setup: Begin IRReceiver and IRSender
 void IRHandler::begin() {
-    Serial.begin(115200);
-    IrReceiver.begin(receivePin, ENABLE_LED_FEEDBACK);  // Initialize receiver
-    IrSender.begin(_sendPin);  // Initialize sender
-    pinMode(_tvpin,INPUT);
-    Serial.println("IR Receiver and Sender Initialized");
+  Serial.begin(115200);
+    Serial.print("Initializing IR on receive pin: ");
+    Serial.println(receivePin);
+    
+    IrReceiver.begin(receivePin, ENABLE_LED_FEEDBACK);
+    IrSender.begin(_sendPin);
+    
+    Serial.println("IR initialized");
+  
+  if (!LittleFS.begin()) {
+    MyLog(ERROR, "Failed to initialize LittleFS");
+    return;
+  }
+
+  // Try to load saved IR data
+  if (!readMyIRDataJSON(f, receivedData)) {
+    MyLog(INFO, "No saved IR data found");
+    receivedData.data_stored = false;
+  } else {
+    MyLog(INFO, "Loaded saved IR data");
+  }
 }
 
 // Receive IR signal and identify protocol
@@ -220,8 +302,11 @@ bool IRHandler::receiveIR(bool saveData) {
             IrReceiver.resume(); // Ready to receive next data
             IrReceiver.stop();
             return true;
-        }
+        } delay(100);
+
 }
+MyLog(ERROR, "IR receive timeout");
+    return false;
 }
 
 // Identify the protocol type of the received IR signal
@@ -264,10 +349,11 @@ void IRHandler::sendIR() {
         IrSender.sendPulseDistanceWidthFromArray(38, &receivedData.timingInfo, &receivedData.DecodedRawDataArray[0], receivedData.numberOfBits, PROTOCOL_IS_LSB_FIRST,100,0);
     }else if (receivedData.protocol == NEC ){ 
         IrSender.sendNEC(receivedData.IR_Adress,receivedData.IR_Command,38);
+        Serial.println("SENDING NEC PROTOCOLE ");
     } 
     else if (receivedData.protocol == SAMSUNG) {
         Serial.println("SENDING SAMSUNG PROTOCOLE ");
-        IrSender.sendSamsung(receivedData.IR_Adress,receivedData.IR_Command,38);
+        IrSender.sendSamsung(receivedData.IR_Adress,receivedData.IR_Command,19);
         // IrSender.sendRaw(IrReceiver.decodedIRData.rawDataPtr->rawbuf,IrReceiver.decodedIRData.rawlen,38);
         // IrSender.write(IrReceiver.decodedIRData);
         // Send Samsung IR command (implement logic for Samsung)
@@ -290,10 +376,34 @@ void IRHandler::playBackData(const MyIRData& irData) {
     sendIR();
 }
 void IRHandler::clear_file(const char* filename) {
-    MyIRData d = { 0}; 
-    d.data_stored=false; 
-    storeMyIRDataJSON(filename,d);
+    MyLog(INFO, "Clearing IR data file...");
+    
+    // Create empty IR data structure
+    MyIRData blankData = {
+        false,           // data_stored
+        UNKNOWN,         // protocol
+        {0},             // DecodedRawDataArray
+        {0,0,0,0,0,0},   // timingInfo
+        0,              // numberOfBits
+        0,              // IR_Adress
+        0               // IR_Command
+    };
 
+    // Store the blank data
+    storeMyIRDataJSON(filename, blankData);
+    
+    // Verify the file was cleared
+    if (LittleFS.exists(filename)) {
+        File file = LittleFS.open(filename, "r");
+        if (file && file.size() > 0) {
+            MyLog(INFO, "IR data file cleared successfully");
+        } else {
+            MyLog(ERROR, "Failed to clear IR data file");
+        }
+        if (file) file.close();
+    } else {
+        MyLog(ERROR, "IR data file doesn't exist after clear attempt");
+    }
 }
 void IRHandler::storeMyIRDataJSON(const char* filename, const MyIRData& data) {
 

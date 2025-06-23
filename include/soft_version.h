@@ -1,7 +1,7 @@
 #ifndef SOFT_VERSION_H
 #define  SOFT_VERSION_H
 
-#define PRODUCT_NAME "AutoAdStation"
+#define PRODUCT_NAME "STARTER"
 
 
 #define STRINGIFY(x) #x

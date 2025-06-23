@@ -47,6 +47,8 @@
 #include <Arduino.h>
 #include <IRremote.h>
 #include "IR_PIN_DEF.h" // Define macros for input and output pin etc.
+#include "Hardware.h"
+
 #if !defined(IR_SEND_PIN)
 #define IR_SEND_PIN         4
 #endif
@@ -112,7 +114,7 @@ void loop() {
      */
     if (tSendButtonIsActive) {
         if (!sSendButtonWasActive) {
-            Serial.println(F("Stop receiving"));
+            Serial.println(F("Stop receiving")) ;
             IrReceiver.stop();
         }
         /*

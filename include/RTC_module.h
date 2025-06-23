@@ -1,47 +1,54 @@
-#ifndef RTC_MOD
-#define RTC_MOD
-//  #include "RtcDateTime.h"
-#include <RtcDS1302.h>
-#include <ThreeWire.h>
-#include <Arduino.h>
-typedef struct
-{
-  uint8_t day;
-  uint8_t month;
-  uint8_t year;
-  uint8_t hour;
-  uint8_t min;
-  uint8_t secs;
-} dateTime;
+#ifndef RTC_MODULE_H
+#define RTC_MODULE_H
 
-class RTC_Module
-{
+// #include <Rtc1307.h> // Removed as RTClib.h already includes DS1307 support
+#include <Wire.h>
+#include <RTClib.h>  // This already includes RtcDS1307 support
+#include <RtcDateTime.h>
+
+class RTC_Module {
 private:
-  RtcDateTime start_time;
-  uint32_t duration_seconds;
-  bool time_func;
-  RtcDateTime beginTime;
-  RtcDateTime endTime;
-  uint8_t _datapin, _clkpin, _rstpin;
-  ThreeWire wire;
-  RtcDS1302<ThreeWire> Rtc;
+    RTC_DS1307 rtc;  // Changed to DS1307 specific
+    RtcDateTime _beginTime;
+    RtcDateTime _endTime;
+    int start_min;
+    int prev_min;
+    bool timer = false;
+    bool time_func = false;
+    uint32_t duration_seconds;
+    RtcDateTime start_time; // Variable to store the start time
 
 public:
-  int start_min;
-  int prev_min;
-  bool timer = false;
-  RTC_Module(uint8_t dpin, uint8_t clkpin, uint8_t rstpin);
-  void checkOperatingPeriod();
-  void RTC_Module_init();
-  void printDateTime(RtcDateTime &dt);
+    RTC_Module() : start_min(0), prev_min(0), time_func(false), rtc() {}
+    
+    // Initialize RTC with proper DS1307 setup
+    bool begin() {
+        if (!rtc.begin()) {
+            return false;
+        }
+        if (!rtc.isrunning()) {
+            // Optional: Set to compile time if RTC lost power
+            rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+        }
+        return true;
+    }
 
-  RtcDateTime RTC_getDateTime();
-
-  bool isWithinOperatingPeriod(RtcDateTime now);
-  void set_beginTime(RtcDateTime s);
-  void set_endTime(RtcDateTime s);
-  // TODO:
-  // create a func that converts dateTime struct type to RtcDateTime type ;
+    // Keep all your existing methods as they are:
+    void RTC_Timer(uint32_t seconds);
+    bool isRtcRunning();
+    bool initRTC();
+    void RTC_Module_init();
+    void printDateTime(const RtcDateTime& dt);
+    RtcDateTime RTC_getDateTime();
+    bool isElapsed();
+    bool RTC_SetTimer_min();
+    uint8_t DayOfWeek();
+    void set_beginTime(RtcDateTime beginTime);
+    void set_endTime(RtcDateTime endTime);
+    void setDateTime(RtcDateTime dateTime);
+    bool isWithinOperatingPeriod(RtcDateTime currentTime, bool isWithinSchedule);
+    String rtcDateTimeToString(const RtcDateTime& dateTime);
+    RtcDateTime convertToRtcDateTime(const String &timeString);
 };
 
 #endif

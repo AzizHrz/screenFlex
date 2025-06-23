@@ -6,6 +6,9 @@
 #include <Ethernet.h>
 #include <HTTPClient.h>
 #include "conf.h"
+#include <ArduinoJson.h>
+#include <Ethernet.h>
+#include <WiFi.h>
 // MACROS FOR TESTING COMPILATION 
 
 // macors conditions 
@@ -21,7 +24,16 @@ class NetworkStack
 public:
 
     NetworkStack();
-
+    bool sendLogs(const String& logsJson) {
+        StaticJsonDocument<256> doc;
+        DeserializationError error = deserializeJson(doc, logsJson);
+        
+        if (error) {
+            Serial.printf("JSON error: %s\n", error.c_str());
+            return false;
+        }
+        return doc["success"] == true;
+    }
     // initializes both the Ethernet and wifi module 
     void setServerIp(IPAddress ip){serverIP=ip ; }
     void setSercerPort(int port ){ServerPort=port;}
@@ -37,7 +49,10 @@ public:
 
     // SERVER COMS  SHIT 
     void NotifyServer();
+
     const String GetFirmwareVersion();
+    const String GetSchedule();
+    const String GetTVState(String& beginDay, String& endDay, String& tvState);
 
     
     
@@ -48,14 +63,20 @@ public:
     // SETINGS SHIT 
     IPAddress GetServerIP(){return serverIP;};
     uint8_t *GetMacaddr();
+    
+    // Add to NetworkStack class
+    String generateDeviceId() ;
 
+
+
+    String HTTPGET(const String &reqPath);
 private:
-
+    
     static void runTaskWOL(void* parameter);    
     // void TaskOTAPool();
     String ReadHTTPResponse();
     String HTTPPOST(const String &reqPath, const String &contentType, const String &data);
-    String HTTPGET(const String &reqPath);
+    
     int RequestOTA(const String &reqPath); 
     int UpdateFirmware(int FirmwareSize);
     void MacArrayToString(const uint8_t* arr,char* macString,size_t _sizeMacString); 
@@ -72,8 +93,8 @@ private:
     EthernetClient client;
 #else
     WiFiClient client;
-    const char *ssid = "";
-    const char *passwd = "";
+    const char *ssid = "Globalnet"; // "TP-Link_AP_70CA"  "NETGEAR30";
+    const char *passwd = "105719105719";
 #endif
 };
 

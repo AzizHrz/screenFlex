@@ -27,8 +27,7 @@ public:
     void killRGBTask();
 
     void setBlinkingStatus(LED_STATUS_COLOR s);
-
-private:
+    
     static void toggleLEDTask(void *parameter);
 
 private:
