@@ -8,6 +8,17 @@
 #include "IR_Module.h"
 #include "Mylog.h"
 
+// newww
+#include "dataModel.h"
+
+#include "OTAUpdate.h"
+
+
+
+#include "RTC_module.h"
+
+#include "ScheduleUtils.h"
+
 
 void setup() {
       Serial.begin(115200);

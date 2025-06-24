@@ -5,7 +5,7 @@
 #include <Update.h>
 #include <Ethernet.h>
 #include <HTTPClient.h>
-#include "conf.h"
+#include "config.h"
 #include <ArduinoJson.h>
 #include <Ethernet.h>
 #include <WiFi.h>
