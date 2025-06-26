@@ -1,5 +1,5 @@
-#include "RGBModule.h"
-#include "Mylog.h"
+#include "modules/RGBModule.h"
+#include "utils/Mylog.h"
 #include <Arduino.h>
 RGBModule::RGBModule(int _rpin, int _gpin, int _bpin)
 {

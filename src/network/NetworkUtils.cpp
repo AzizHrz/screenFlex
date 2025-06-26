@@ -1,6 +1,6 @@
 // newww module
 
-#include "network/NetworkUtil.h"
+#include "network/NetworkUtils.h"
 #include "dataModel.h"
 #include "network/network_stack.h"
 #include "utils/Mylog.h"

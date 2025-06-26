@@ -63,21 +63,7 @@ extern String tvState;
 extern uint8_t checkTVStatus();
 extern String getCurrentDay();
 
-void verifyTVState() {
-    uint8_t hwState = checkTVStatus();
-    TVState actualState = (hwState == 1) ? TV_OFF : TV_ON;
 
-    if(actualState != currentTVState && currentTVState != TV_TRANSITIONING) {
-        MyLogF(WARNING, "State mismatch: System=%s, Hardware=%s",
-              currentTVState == TV_ON ? "ON" : "OFF",
-              actualState == TV_ON ? "ON" : "OFF");
-
-        currentTVState = actualState;
-        if(connectToNetwork()) {
-            reportTVStateToServer();
-        }
-    }
-}
 
 void printSystemStatus() {
     RtcDateTime now = rtc.RTC_getDateTime();

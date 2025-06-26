@@ -3,6 +3,8 @@
 #ifndef NETWORK_UTIL_H
 #define NETWORK_UTIL_H
 
+#include "utils/EthernetUtils.h"
+
 bool connectToNetwork();
 void reportTVStateToServer();
 // 2

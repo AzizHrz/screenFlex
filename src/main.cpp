@@ -1,23 +1,150 @@
+// 1
 #include <Arduino.h>
-#include "config.h"
-#include "soft_version.h"
-#include "network_stack.h"
-#include "Hardware.h"
-#include "RGBModule.h"
-#include "ButtonModule.h"
-#include "IR_Module.h"
-#include "Mylog.h"
+// 3
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include <ArduinoJson.h>
+#include <RtcDateTime.h>
+#include <RtcDS1307.h>
+#include <LittleFS.h>
+#include <Ethernet.h>
+#include <SPI.h>
+#include <time.h>
+#include <TimeLib.h>
+#include <Wire.h>
 
+#include "config/config.h"
+#include "config/soft_version.h"
+#include "network/network_stack.h"
+#include "Hardware.h"
+#include "modules/RGBModule.h"
+#include "modules/ButtonModule.h"
+#include "utils/Mylog.h"
 // newww
 #include "dataModel.h"
+#include "network/OTAUpdate.h"
+#include "modules/RTC_module.h"
+#include "utils/ScheduleUtils.h"
+// 3 
+/**
+ * TV Controller Firmware with OTA Updates
+ * Version: 1.3.6
+ * Author: Ayoub Zaghouani
+ */
 
-#include "OTAUpdate.h"
+// --- Project Modules ---
+#include "utils/Persistence.h"
+#include "network/NetworkUtils.h"
+#include "network/OTAUpdate.h"
 
+#define ENABLE_IR 1
+#define ENABLE_WOL 0
+#define ENABLE_OTA 1
 
+#define SYNC_INTERVAL 300000
+#define OTA_CHECK_INTERVAL 3600000
 
-#include "RTC_module.h"
+#define IR_DATA_FILE "/ir_data.json"
+#define SCHEDULE_FILE "/schedule.json"
+#define MODE_FILE "/mode.json"
+#define VERSION_FILE "/version.json"
+#define WIFI_CONFIG_FILE "/wifi_config.json"
 
-#include "ScheduleUtils.h"
+// --- Network ---
+const char* ssid = "OPPO Reno12 F";
+const char* password = "h4qu37mv";
+WiFiClient client;
+EthernetClient ethClient;
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+const int W5500_CS_PIN = 33;
+bool useEthernet = false;
+IPAddress serverIp(18 ,235, 73, 121);
+const int serverPort = 5000;
+NetworkStack network;
+
+// --- IR Pins ---
+#define IR_RECEIVE_PIN 16
+#define TV_STATUS_PIN 39
+#define IR_SEND_PIN 32
+
+// --- Firmware Version ---
+const String CURRENT_FIRMWARE_VERSION = "1.0.0";
+
+// --- State Flags ---
+uint8_t currentTVStatus = 0;
+unsigned long lastStatusCheck = 0;
+const uint16_t STATUS_CHECK_INTERVAL = 300;
+String DEVICE_ID = "SOLUTIONGENERIQUE1";
+
+// --- RGB & Button & RTC Instances ---
+ButtonModule btn(PIN_BTN);
+RGBModule rgb(RGB_RED_PIN, RGB_GREEN_PIN, RGB_BLUE_PIN);
+RTC_Module rtc;
+
+#if ENABLE_IR
+IRHandler irHandler(IR_RECEIVE_PIN, IR_SEND_PIN, TV_STATUS_PIN);
+#endif
+
+// --- Enums & Models ---
+enum TVState {
+  TV_UNKNOWN,
+  TV_OFF,
+  TV_ON,
+  TV_TRANSITIONING
+};
+
+TVState currentTVState = TV_UNKNOWN;
+TVState desiredTVState = TV_UNKNOWN;
+
+struct PersistentData {
+    ModeData mode;
+    ScheduleData schedule;
+    TVState lastCommandedState;
+    unsigned long lastUpdate;
+};
+
+PersistentData persistentData;
+ScheduleData currentSchedule;
+ModeData currentMode;
+String tvState = "OFF";
+
+ScheduleData defaultSchedule = {
+  true,
+  {"Mon", "Tue", "Wed", "Thu", "Fri", "", ""},
+  5,
+  "08:00",
+  "20:00",
+  "UTC+1"
+};
+
+const char* shortDays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+const char* longDays[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+// --- Function Prototypes ---
+void displaySystemStatus();
+void handleButtonPress();
+void syncWithServer();
+bool checkSchedule(const ScheduleData& schedule);
+void manageTVState();
+void syncRTCWithNTP();
+String generateDeviceId();
+String getCurrentDay();
+void updateLEDStatus();
+bool parseScheduleResponse(const String& payload);
+bool isDaySelected(String day);
+bool initEthernet();
+bool connectToNetwork();
+void reportTVStateToServer();
+bool fetchModeFromServer();
+void verifyTVState();
+bool updateScheduleFromServer();
+void updateDesiredState();
+bool pingServer();
+
+// ==================
+// === USER LOGIC ===
+// ==================
+
 
 // =========================== 1 ===========================
 
@@ -225,6 +352,29 @@ void syncWithServer() {
 //============================================================================
 
 // =========================== 2 ===========================
+
+//**************   
+
+// Global State Variables
+TVState currentTVState = TV_UNKNOWN;
+TVState desiredTVState = TV_UNKNOWN;
+void verifyTVState() {
+    uint8_t hwState = checkTVStatus();
+    TVState actualState = (hwState == 1) ? TV_OFF : TV_ON;
+
+    if(actualState != currentTVState && currentTVState != TV_TRANSITIONING) {
+        MyLogF(WARNING, "State mismatch: System=%s, Hardware=%s",
+              currentTVState == TV_ON ? "ON" : "OFF",
+              actualState == TV_ON ? "ON" : "OFF");
+
+        currentTVState = actualState;
+        if(connectToNetwork()) {
+            reportTVStateToServer();
+        }
+    }
+}
+//***************************** 
+
 
 void manageTVState() {
     #if ENABLE_IR

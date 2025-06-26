@@ -1,9 +1,9 @@
-#include "network_stack.h"
-#include "Mylog.h"
+#include "network/network_stack.h"
+#include "utils/Mylog.h"
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
-#include "config.h"
-#include "RTC_module.h"
+#include "config/config.h"
+#include "modules/RTC_module.h"
 #include <Ethernet.h>
 #include "esp_task_wdt.h"
 
