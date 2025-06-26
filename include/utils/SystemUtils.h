@@ -6,4 +6,9 @@
 uint8_t checkTVStatus();
 bool is_newer_version(const String& current, const String& available);
 
+// 2
+void printSystemStatus();
+void verifyTVState();
+String generateDeviceId();
+
 #endif // SYSTEM_UTILS_H

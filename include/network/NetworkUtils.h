@@ -5,5 +5,6 @@
 
 bool connectToNetwork();
 void reportTVStateToServer();
-
+// 2
+bool pingServer();
 #endif // NETWORK_UTIL_H

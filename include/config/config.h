@@ -27,14 +27,16 @@ const uint8_t targetMAC[] = {0x00, 0xe0, 0x4c, 0x38, 0xcd, 0xc2}; // BLACK
 #define SERVER_IP SCREE_FLEX_SERV_IP
 #define SERVER_PORT SCREE_FLEX_SERV_PORT
 #endif 
-#endif
-
 
 // #include "RtcDateTime.h"
-#include "RTC_module.h"
+#include "modules/RTC_module.h"
 
 // RTC Module
 extern RTC_Module rtc;
 
 extern RtcDateTime beginTime;
 extern RtcDateTime endTime;
+#endif
+
+
+
