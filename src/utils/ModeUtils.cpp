@@ -5,6 +5,7 @@
 #include "utils/Persistence.h"
 #include "utils/ScheduleUtils.h"
 #include "network/NetworkUtils.h"
+#include "network/network_stack.h"
 
 extern ModeData currentMode;
 extern ScheduleData currentSchedule;

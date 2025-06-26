@@ -15,16 +15,27 @@
 
 #include "config/config.h"
 #include "config/soft_version.h"
-#include "network/network_stack.h"
-#include "Hardware.h"
+
 #include "modules/RGBModule.h"
 #include "modules/ButtonModule.h"
-#include "utils/Mylog.h"
-// newww
-#include "dataModel.h"
-#include "network/OTAUpdate.h"
 #include "modules/RTC_module.h"
+#include "modules/IR_Module.h"
+
+#include "network/network_stack.h"
+#include "network/OTAUpdate.h"
+#include "network/NetworkUtils.h"
+
+#include "utils/EthernetUtils.h"
+#include "utils/ModeUtils.h"
+#include "utils/Mylog.h"
+#include "utils/Persistence.h"
 #include "utils/ScheduleUtils.h"
+#include "utils/SystemUtils.h"
+
+#include "dataModel.h"
+#include "Hardware.h"
+
+
 // 3 
 /**
  * TV Controller Firmware with OTA Updates
@@ -33,9 +44,8 @@
  */
 
 // --- Project Modules ---
-#include "utils/Persistence.h"
-#include "network/NetworkUtils.h"
-#include "network/OTAUpdate.h"
+
+
 
 #define ENABLE_IR 1
 #define ENABLE_WOL 0
@@ -57,24 +67,21 @@ WiFiClient client;
 EthernetClient ethClient;
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 const int W5500_CS_PIN = 33;
-bool useEthernet = false;
+bool useEthernet = false; // true for Ethernet, false for WiFi
 IPAddress serverIp(18 ,235, 73, 121);
 const int serverPort = 5000;
 NetworkStack network;
 
-// --- IR Pins ---
-#define IR_RECEIVE_PIN 16
-#define TV_STATUS_PIN 39
-#define IR_SEND_PIN 32
+
 
 // --- Firmware Version ---
 const String CURRENT_FIRMWARE_VERSION = "1.0.0";
 
 // --- State Flags ---
 uint8_t currentTVStatus = 0;
-unsigned long lastStatusCheck = 0;
-const uint16_t STATUS_CHECK_INTERVAL = 300;
-String DEVICE_ID = "SOLUTIONGENERIQUE1";
+unsigned long lastStatusCheck = 0; // unused
+const uint16_t STATUS_CHECK_INTERVAL = 300; //unused
+String DEVICE_ID = "SOLUTIONGENERIQUE1";// exist other method to generate it
 
 // --- RGB & Button & RTC Instances ---
 ButtonModule btn(PIN_BTN);
@@ -84,7 +91,7 @@ RTC_Module rtc;
 #if ENABLE_IR
 IRHandler irHandler(IR_RECEIVE_PIN, IR_SEND_PIN, TV_STATUS_PIN);
 #endif
-
+/*exist in dataModel.h
 // --- Enums & Models ---
 enum TVState {
   TV_UNKNOWN,
@@ -93,15 +100,14 @@ enum TVState {
   TV_TRANSITIONING
 };
 
-TVState currentTVState = TV_UNKNOWN;
-TVState desiredTVState = TV_UNKNOWN;
+
 
 struct PersistentData {
     ModeData mode;
     ScheduleData schedule;
     TVState lastCommandedState;
     unsigned long lastUpdate;
-};
+};*/
 
 PersistentData persistentData;
 ScheduleData currentSchedule;
@@ -119,6 +125,14 @@ ScheduleData defaultSchedule = {
 
 const char* shortDays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char* longDays[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+#include <WebServer.h>
+WebServer otaServer(80);
+
+// Global State Variables
+TVState currentTVState = TV_UNKNOWN;
+TVState desiredTVState = TV_UNKNOWN;
+
 
 // --- Function Prototypes ---
 void displaySystemStatus();
@@ -355,9 +369,7 @@ void syncWithServer() {
 
 //**************   
 
-// Global State Variables
-TVState currentTVState = TV_UNKNOWN;
-TVState desiredTVState = TV_UNKNOWN;
+
 void verifyTVState() {
     uint8_t hwState = checkTVStatus();
     TVState actualState = (hwState == 1) ? TV_OFF : TV_ON;
@@ -447,48 +459,6 @@ void manageTVState() {
 
 
 
-String getCurrentDay() {
-    RtcDateTime rtcTime = rtc.RTC_getDateTime();
-    
-    // For DS1307, we need to read day of week directly from register
-    uint8_t dayOfWeek;
-    
-    #ifdef RTC_DS1307
-    Wire.beginTransmission(0x68);
-    Wire.write(0x03); // Day of week register
-    Wire.endTransmission();
-    Wire.requestFrom(0x68, 1);
-    if (Wire.available()) {
-        dayOfWeek = Wire.read();
-    } else {
-        dayOfWeek = 0;
-    }
-    // DS1307 uses 1=Sunday through 7=Saturday
-    dayOfWeek = (dayOfWeek - 1) % 7;
-    #else
-    // For other RTC chips that include day in DateTime
-    dayOfWeek = rtcTime.DayOfWeek();
-    #endif
-
-    // Validate day
-    if (dayOfWeek > 6) {
-        // Calculate from date if invalid
-        int d = rtcTime.Day();
-        int m = rtcTime.Month();
-        int y = rtcTime.Year();
-        
-        if (m < 3) {
-            m += 12;
-            y--;
-        }
-        
-        dayOfWeek = (d + (13 * (m + 1) / 5) + y + (y / 4) - (y / 100) + (y / 400)) % 7;
-    }
-
-    const char* days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-    return days[dayOfWeek % 7];
-}
-
 void syncRTCWithNTP() {
     if (!rtc.begin()) {
         MyLog(ERROR, "RTC initialization failed!");
@@ -552,6 +522,105 @@ void syncRTCWithNTP() {
           rtcTime.Hour(), rtcTime.Minute(), rtcTime.Second());
 }
 //============================================================================
+
+
+// 2
+
+bool pingServer() {
+    if (!connectToNetwork()) {
+        MyLog(INFO, "Not connected - skipping ping");
+        return false;
+    }
+
+    HTTPClient http;
+    String url = "http://" + serverIp.toString() + ":" + String(serverPort) + "/api/v1/esp/" + DEVICE_ID + "/ping";
+    if (useEthernet) {
+        http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/ping");
+    } else {
+        http.begin(client, url);
+    }
+
+    http.addHeader("Content-Type", "application/json");
+
+    // Build JSON payload
+    DynamicJsonDocument doc(1024);
+    doc["actual_state"] = currentTVState == TV_ON ? "on" : "off";
+    doc["desired_state"] = desiredTVState == TV_ON ? "on" : "off";
+
+    RtcDateTime rtcTime = rtc.RTC_getDateTime();
+    char timeStr[20];
+    sprintf(timeStr, "%04u-%02u-%02uT%02u:%02u:%02uZ",
+            rtcTime.Year(), rtcTime.Month(), rtcTime.Day(),
+            rtcTime.Hour(), rtcTime.Minute(), rtcTime.Second());
+    doc["current_time"] = String(timeStr);
+
+    String payload;
+    serializeJson(doc, payload);
+
+    int httpCode = http.POST(payload);
+    if (httpCode == HTTP_CODE_OK) {
+        String response = http.getString();
+        DynamicJsonDocument resDoc(1024);
+        DeserializationError error = deserializeJson(resDoc, response);
+        if (!error && resDoc["success"]) {
+            JsonObject data = resDoc["data"];
+
+            // Save returned values
+            String serverMode = data["mode"].as<String>();
+            currentMode.useSchedule = (serverMode == "schedule");
+            saveMode(currentMode);
+
+            desiredTVState = (data["tv_state"].as<String>() == "on") ? TV_ON : TV_OFF;
+            persistentData.lastCommandedState = desiredTVState;
+
+            currentSchedule = data["schedule"].as<ScheduleData>();
+            saveSchedule(currentSchedule);
+
+            if (data.containsKey("wifi")) { 
+                WiFiConfig newConfig;
+                newConfig.ssid = data["wifi"]["ssid"].as<String>();
+                newConfig.password = data["wifi"]["password"].as<String>();
+                
+                WiFiConfig currentConfig;
+                if (loadWiFiConfig(currentConfig)) {
+                    if (currentConfig.ssid != newConfig.ssid || currentConfig.password != newConfig.password) {
+                        if (saveWiFiConfig(newConfig)) {
+                            MyLog(INFO, "Updated WiFi config from server");
+                            // Reconnect if we're using WiFi
+                            if (!useEthernet) {
+                                network.configureWiFi(newConfig.ssid.c_str(), newConfig.password.c_str());
+                                network.InitWifiModule();
+                            }
+                        }
+                    }
+                } else {
+                    // No existing config, save the new one
+                    if (saveWiFiConfig(newConfig)) {
+                        MyLog(INFO, "Saved new WiFi config from server");
+                    }
+                }
+            }
+            
+            String latestVersion = data["latest_firmware_version"].as<String>();
+            String currentVersion = loadCurrentVersion();
+
+            if (is_newer_version(currentVersion, latestVersion)) {
+                MyLogF(INFO, "New firmware available: %s", latestVersion.c_str());
+                if (checkForUpdates()) {
+                    saveCurrentVersion(latestVersion);
+                    ESP.restart();
+                }
+            }
+
+            return true;
+        }
+    } else {
+        MyLogF(ERROR, "Ping failed: %d", httpCode);
+    }
+    http.end();
+    return false;
+}
+
 
 void setup() {
       Serial.begin(115200);
@@ -682,3 +751,20 @@ void loop() {
     updateLEDStatus();
     delay(50);
 }
+
+// used for .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson/Variant/convertermpl.hpp
+void convertFromJson(JsonVariantConst src, ScheduleData& dst) {
+    dst.active = src["active"] | dst.active;
+    dst.timezone = src["timezone"] | dst.timezone;
+    dst.startTime = src["start_time"] | dst.startTime;
+    dst.endTime = src["end_time"] | dst.endTime;
+
+    dst.daysCount = 0;
+    JsonArrayConst daysArray = src["weekdays"];
+    for (JsonVariantConst day : daysArray) {
+        if (dst.daysCount < 7) {
+            dst.days[dst.daysCount++] = day.as<String>();
+        }
+    }
+}
+

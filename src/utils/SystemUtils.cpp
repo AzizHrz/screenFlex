@@ -13,7 +13,8 @@
 #include <Ethernet.h>
 
 // 1
-extern int TV_STATUS_PIN;
+//extern int TV_STATUS_PIN;
+#include "Hardware.h"
 
 uint8_t checkTVStatus() {
     static uint8_t lastStableState = 0;
@@ -53,7 +54,10 @@ bool is_newer_version(const String& current, const String& available) {
 // SystemUtils.cpp (extend it)
 
 
-extern RtcDS1307 rtc;
+//extern RtcDS1307 rtc;
+extern RTC_Module rtc;
+
+
 extern String DEVICE_ID;
 extern ScheduleData currentSchedule;
 extern ModeData currentMode;

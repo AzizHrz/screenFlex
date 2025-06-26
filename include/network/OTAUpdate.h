@@ -12,3 +12,4 @@ bool performOTAUpdate(String firmwareUrl);
 void setupOTA();
 
 #endif // OTA_UPDATE_H
+

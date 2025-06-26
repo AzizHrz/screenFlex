@@ -9,6 +9,8 @@
 #include "config/config.h"
 #include "dataModel.h"
 #include "network/network_stack.h"
+#include "Hardware.h"
+
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 #include <WiFi.h>
@@ -32,6 +34,10 @@ extern void saveCurrentVersion(const String& ver);
 extern uint8_t checkTVStatus();
 
 bool receivedNewSchedule = false;
+
+// by me
+extern RGBModule rgb;
+
 
 bool performOTAUpdate(String firmwareUrl) {
     MyLog(INFO, "Starting OTA update...");

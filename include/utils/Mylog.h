@@ -1,3 +1,4 @@
+
 #ifndef MY_LOG_H_
 #define MY_LOG_H_
 

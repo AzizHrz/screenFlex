@@ -1,10 +1,17 @@
-#include "utils/Persistence.h"
-#include "utils/Mylog.h"
-#include "dataModel.h"
+
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 
+#include "utils/Persistence.h"
+#include "utils/Mylog.h"
+#include "dataModel.h"
 #include "config/config.h"
+#include "network/network_stack.h"
+
+
+#define MODE_FILE "/mode.json"
+
+#define WIFI_CONFIG_FILE "/wifi_config.json"
 
 // 1
 

@@ -4,9 +4,10 @@
 
 #define PIN_BTN  12
 
+// --- IR Pins ---
 #define IR_RECEIVE_PIN 16
 #define TV_STATUS_PIN 39
-// #define IR_SEND_PIN 32
+#define IR_SEND_PIN 32
 
 
 #define RGB_RED_PIN 27

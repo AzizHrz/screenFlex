@@ -12,12 +12,107 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 
+//5
+#include "RtcDateTime.h"
+#include "RtcDS1307.h"
+#include "modules/RTC_module.h"
+
+#include "config/soft_version.h"
+#include "Hardware.h"
+#include "modules/RGBModule.h"
+#include "modules/ButtonModule.h"
+#include "modules/IR_Module.h"
+#include "utils/Mylog.h"
+#include <Arduino.h>
+#include <RtcDateTime.h>
+#include <LittleFS.h>
+#include <time.h>
+#include <WString.h>
+#include <IRremote.h>
+
+//6
+
+#include <Arduino.h>
+#include "network/network_stack.h"
+#include "Hardware.h"
+
+#include <HTTPClient.h>
+#include <HTTPUpdate.h> // Include the ESP32 HTTP Update library
+#include <ArduinoJson.h>
+#include "RtcDateTime.h"
+#include "RtcDS1307.h"
+#include <LittleFS.h>
+#include <time.h>
+#include <TimeLib.h>
+#include <Ethernet.h>
+#include <SPI.h>
+
+#include "network/NetworkUtils.h" // include for connectToNetwork
+#include "dataModel.h"  // include for ScheduleData 
+ScheduleData currentSchedule;
+
+extern const char* shortDays[];
+extern const char* longDays[] ;
+
+#define IR_DATA_FILE "/ir_data.json" // unused
+#define SCHEDULE_FILE "/schedule.json"
+#define MODE_FILE "/mode.json"
+#define VERSION_FILE "/version.json" // unused
+#define WIFI_CONFIG_FILE "/wifi_config.json"
+
+
+
 extern String DEVICE_ID;
 extern bool useEthernet;
 extern IPAddress serverIp;
 extern int serverPort;
 extern WiFiClient client;
 extern ScheduleData defaultSchedule;
+
+// 4
+
+String getCurrentDay() {
+    RtcDateTime rtcTime = rtc.RTC_getDateTime();
+    
+    // For DS1307, we need to read day of week directly from register
+    uint8_t dayOfWeek;
+    
+    #ifdef RTC_DS1307
+    Wire.beginTransmission(0x68);
+    Wire.write(0x03); // Day of week register
+    Wire.endTransmission();
+    Wire.requestFrom(0x68, 1);
+    if (Wire.available()) {
+        dayOfWeek = Wire.read();
+    } else {
+        dayOfWeek = 0;
+    }
+    // DS1307 uses 1=Sunday through 7=Saturday
+    dayOfWeek = (dayOfWeek - 1) % 7;
+    #else
+    // For other RTC chips that include day in DateTime
+    dayOfWeek = rtcTime.DayOfWeek();
+    #endif
+
+    // Validate day
+    if (dayOfWeek > 6) {
+        // Calculate from date if invalid
+        int d = rtcTime.Day();
+        int m = rtcTime.Month();
+        int y = rtcTime.Year();
+        
+        if (m < 3) {
+            m += 12;
+            y--;
+        }
+        
+        dayOfWeek = (d + (13 * (m + 1) / 5) + y + (y / 4) - (y / 100) + (y / 400)) % 7;
+    }
+
+    const char* days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    return days[dayOfWeek % 7];
+}
+
 
 // 1
 
