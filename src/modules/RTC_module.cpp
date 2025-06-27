@@ -2,9 +2,7 @@
 #include <Wire.h>
 #include "RtcDS1307.h"
 
-// DS1307 uses standard I2C pins (no ThreeWire needed)
-#define I2C_SDA 21
-#define I2C_SCL 22
+
 
 
 

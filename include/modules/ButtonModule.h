@@ -2,6 +2,7 @@
 #define BUTTON_H 
 #include<Arduino.h>
 
+extern volatile bool Wake_PC_STATE_finished; //unused
 
 class ButtonModule{ 
 public: 

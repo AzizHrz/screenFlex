@@ -3,8 +3,7 @@
 #include <Ethernet.h>
 #include <SPI.h>
 
-extern byte mac[];
-extern int W5500_CS_PIN;
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
 bool initEthernet() {
     static unsigned long lastAttempt = 0;

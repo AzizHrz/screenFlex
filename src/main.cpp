@@ -43,9 +43,6 @@
  * Author: Ayoub Zaghouani
  */
 
-// --- Project Modules ---
-
-
 
 #define ENABLE_IR 1
 #define ENABLE_WOL 0
@@ -65,7 +62,6 @@ const char* ssid = "OPPO Reno12 F";
 const char* password = "h4qu37mv";
 WiFiClient client;
 EthernetClient ethClient;
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 const int W5500_CS_PIN = 33;
 bool useEthernet = false; // true for Ethernet, false for WiFi
 IPAddress serverIp(18 ,235, 73, 121);

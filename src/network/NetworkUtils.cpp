@@ -5,6 +5,10 @@
 #include "network/network_stack.h"
 
 
+// 4
+#include "config/config.h"
+#include "config/soft_version.h"
+
 // Network Configuration
 extern char* ssid;
 extern char* password;
@@ -19,7 +23,7 @@ extern NetworkStack network;
 extern String DEVICE_ID;
 extern WiFiClient client;
 extern IPAddress serverIp;
-extern int serverPort;
+extern const int serverPort;
 //extern String ssid;
 //extern String password;
 extern bool useEthernet;

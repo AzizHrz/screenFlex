@@ -22,7 +22,7 @@
 extern WebServer otaServer;
 extern bool useEthernet;
 extern IPAddress serverIp;
-extern int serverPort;
+extern const int serverPort;
 extern WiFiClient client;
 extern String DEVICE_ID;
 extern NetworkStack network;

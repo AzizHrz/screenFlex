@@ -1,7 +1,6 @@
 #include "modules/ButtonModule.h"
 #include <Arduino.h>
 
-extern volatile bool Wake_PC_STATE_finished;
 static unsigned long pressStart;
 static bool longPressed_5s ;
 static bool longPressed_10s;

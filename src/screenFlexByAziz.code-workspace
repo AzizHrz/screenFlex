@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "screenFlexByAziz",
+			"path": ".."
+		},
+		{
+			"name": "rms-esp",
+			"path": "../../screenFlex/byMeCode/rms-esp"
+		}
+	],
+	"settings": {}
+}

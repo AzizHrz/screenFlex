@@ -65,7 +65,7 @@ extern const char* longDays[] ;
 extern String DEVICE_ID;
 extern bool useEthernet;
 extern IPAddress serverIp;
-extern int serverPort;
+extern const int serverPort;
 extern WiFiClient client;
 extern ScheduleData defaultSchedule;
 

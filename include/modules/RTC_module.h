@@ -5,6 +5,9 @@
 #include <Wire.h>
 #include <RTClib.h>  // This already includes RtcDS1307 support
 #include <RtcDateTime.h>
+// DS1307 uses standard I2C pins (no ThreeWire needed)
+#define I2C_SDA 21
+#define I2C_SCL 22
 
 class RTC_Module {
 private:
