@@ -3,17 +3,19 @@
 #include <Arduino.h>
 
 typedef enum
-{
-    GREEN_COLOR_STATUS = 0,
-    BLUE_COLOR_STATUS,
-    RED_COLOR_STATUS,
-    NO_COLOR_STATUS,
-    YELLOW_COLOR_STATUS,
-    LIGHT_BLUE_COLOR_STATUS,
-    // GREEN_COLOR_STATUS,
-    // GREEN_COLOR_STATUS,
-    // GREEN_COLOR_STATUS,
-} LED_STATUS_COLOR;
+ {
+     GREEN_COLOR_STATUS = 0, /**< LED is green. */
+     BLUE_COLOR_STATUS,      /**< LED is blue. */
+     RED_COLOR_STATUS,       /**< LED is red. */
+     NO_COLOR_STATUS,        /**< LED is off. */
+     YELLOW_COLOR_STATUS,    /**< LED is yellow. */
+     LIGHT_BLUE_COLOR_STATUS,/**< LED is light blue. */
+     BRIGHT_ORANGE_COLOR_STATUS, /**< LED is bright orange. */
+     WHITE_COLOR_STATUS,
+     VIOLET_COLOR_STATUS
+ 
+ } LED_STATUS_COLOR;
+ 
 
 class RGBModule
 {

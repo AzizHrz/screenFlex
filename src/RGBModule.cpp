@@ -35,8 +35,7 @@ void RGBModule::toggleLEDTask(void *parameter)
 	{
 		// Turn on the LED based on the currentColor variable
 		switch (self->BlinkingStatus)
-		{
-			
+		{	
 			MyLogF(DEBUG, "Current RGB Color status %d ", self->BlinkingStatus);
 
 		case 0: // green
@@ -45,41 +44,60 @@ void RGBModule::toggleLEDTask(void *parameter)
 			self->setColor(0, 0, 0);
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 			break;
-		case 1:
+		case 1:  // Blue
 			self->setColor(0, 0, 255);
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 			self->setColor(0, 0, 0);
 			vTaskDelay(500 / portTICK_PERIOD_MS);
-			break; // Blue
-		case 2:
+			break;
+		case 2: // Red
 			self->setColor(255, 0, 0);
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 			self->setColor(0, 0, 0);
 			vTaskDelay(500 / portTICK_PERIOD_MS);
-			break; // Red
-		case 3:
+			break; 
+		case 3: // No color
 			self->setColor(0, 0, 0);
-			vTaskDelay(500 / portTICK_PERIOD_MS);
-			self->setColor(0, 0, 0);
-			vTaskDelay(500 / portTICK_PERIOD_MS);
-			break; // No color
-		case 4:
-			self->setColor(255, 255, 0); // Yellow
+			//vTaskDelay(500 / portTICK_PERIOD_MS);
+			//self->setColor(0, 0, 0);
+			//vTaskDelay(500 / portTICK_PERIOD_MS);
+			break; 
+		case 4: // Yellow
+			self->setColor(255, 255, 0); 
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 			self->setColor(0, 0, 0); // Off
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 			break;
 
-		case 5:
-			self->setColor(173, 216, 230); // Light Blue
+		case 5: // Light Blue
+			self->setColor(173, 216, 230); 
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 			self->setColor(0, 0, 0); // Off
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 			break;
+		case 6: // BRIGHT_ORANGE
+			self->setColor(255, 165, 0); 
+			vTaskDelay(500 / portTICK_PERIOD_MS);
+			self->setColor(0, 0, 0); // Off
+			vTaskDelay(500 / portTICK_PERIOD_MS);
+			break;	
+		case 7: // WHITE_COLOR
+			self->setColor(255, 255, 255); 
+			vTaskDelay(500 / portTICK_PERIOD_MS);
+			self->setColor(0, 0, 0); // Off
+			vTaskDelay(500 / portTICK_PERIOD_MS);
+			break;	
+		case 8: // VIOLET_COLOR
+			self->setColor(128, 0, 128); 
+			vTaskDelay(500 / portTICK_PERIOD_MS);
+			self->setColor(0, 0, 0); // Off
+			vTaskDelay(500 / portTICK_PERIOD_MS);
+			break;			
 		default:
+			self->setColor(0, 0, 0);
+	
 			break;
 		}
-
 		// vTaskDelay(500 / portTICK_PERIOD_MS); // Delay for 500ms
 	}
 }

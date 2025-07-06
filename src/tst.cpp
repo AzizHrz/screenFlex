@@ -48,7 +48,6 @@ struct WiFiConfig {
   String password;
 };
 
-
 struct ModeData {
   bool useSchedule; // true = use schedule, false = use server commands
 };
@@ -510,7 +509,7 @@ void reportTVStateToServer() {
     String currentState = currentHwState ? "off" : "on";
     String path = "/api/v1/esp/" + DEVICE_ID + "/state";
     
-    HTTPClient http;
+    ClientHTTP http;
     if (useEthernet) {
         http.begin(serverIp.toString(), serverPort, path);
     } else {
@@ -655,8 +654,8 @@ bool loadMode(ModeData& mode) {
 // Then declare your variables
 ScheduleData defaultSchedule = {
   true,
-  {"Mon", "Tue", "Wed", "Thu", "Fri", "", ""},
-  5,
+  {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"},
+  7,
   "08:00",
   "20:00",
   "UTC+1"
@@ -1083,6 +1082,7 @@ bool updateScheduleFromServer() {
 
 
 bool pingServer() {
+    // Check network connection first
     if (!connectToNetwork()) {
         MyLog(INFO, "Not connected - skipping ping");
         return false;
@@ -1319,7 +1319,7 @@ void updateLEDStatus() {
 
 // Function Prototypes
 void displaySystemStatus() {
-    static unsigned long lastDisplayTime = 0;
+     static unsigned long lastDisplayTime = 0;
     if (millis() - lastDisplayTime > 5000) {
         lastDisplayTime = millis();
         

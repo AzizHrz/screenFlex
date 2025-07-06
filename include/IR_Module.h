@@ -6,7 +6,7 @@
 #include <Arduino.h>
 #include <IRremote.hpp>
 #include <IRProtocol.h>
-#include "IR_PIN_DEF.h" 
+//#include "IR_PIN_DEF.h" 
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include "Mylog.h"
@@ -101,6 +101,8 @@ uint8_t IRHandler::getTVStatus(uint16_t checkDuration) {
     
     uint32_t startTime = millis();
     while (millis() - startTime < checkDuration) {
+        uint32_t startSampleTime = millis();
+
         uint8_t currentState = digitalRead(_tvpin);
         
         if (currentState == lastState) {
@@ -112,8 +114,12 @@ uint8_t IRHandler::getTVStatus(uint16_t checkDuration) {
             lastState = currentState;
             consistentReadings = 1;
         }
-        
-        delay(20); // Short delay between samples
+        //by aziz
+        //delay(20); // Short delay between samples
+        while (millis() - startSampleTime < 20) {
+            // Wait for 20 ms to avoid flooding the pin reads
+            // This ensures we don't read too quickly and get inconsistent results  
+        }
     }
     
     // Re-enable IR receiver

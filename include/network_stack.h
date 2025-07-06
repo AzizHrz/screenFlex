@@ -7,7 +7,7 @@
 #include <HTTPClient.h>
 #include "conf.h"
 #include <ArduinoJson.h>
-#include <Ethernet.h>
+
 #include <WiFi.h>
 // MACROS FOR TESTING COMPILATION 
 

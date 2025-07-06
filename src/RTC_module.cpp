@@ -7,7 +7,6 @@
 #define I2C_SCL 22
 
 
-
 void RTC_Module::RTC_Timer(uint32_t seconds) {
     duration_seconds = seconds;
     start_time = RtcDateTime(rtc.now().year(), rtc.now().month(), rtc.now().day(), rtc.now().hour(), rtc.now().minute(), rtc.now().second());
