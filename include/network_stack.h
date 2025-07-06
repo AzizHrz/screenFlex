@@ -19,6 +19,9 @@
 #include <HTTPClient.h>
 #include "conf.h"
 
+
+
+
 /**
  * @class NetworkStack
  * @brief Manages network communication, OTA updates, and Wake-on-LAN.
@@ -65,7 +68,9 @@ public:
      * @brief Initializes the Ethernet module with a specific chip select (CS) pin.
      * @param cs_pin The chip select pin for the Ethernet module.
      */
-    void InitEthernetModule(uint8_t cs_pin);
+    //void InitEthernetModule(uint8_t cs_pin);
+
+    bool InitEthernetModule(uint8_t cs_pin);
 
     /**
      * @brief Enables or disables OTA updates.

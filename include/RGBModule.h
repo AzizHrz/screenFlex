@@ -26,6 +26,9 @@
      NO_COLOR_STATUS,        /**< LED is off. */
      YELLOW_COLOR_STATUS,    /**< LED is yellow. */
      LIGHT_BLUE_COLOR_STATUS,/**< LED is light blue. */
+     BRIGHT_ORANGE_COLOR_STATUS, /**< LED is bright orange. */
+     WHITE_COLOR_STATUS,
+     VIOLET_COLOR_STATUS
  
  } LED_STATUS_COLOR;
  

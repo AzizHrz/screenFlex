@@ -1,4 +1,7 @@
 #include "RTC_module.h"
+#include <Wire.h>
+ #include <RtcDS1302.h>
+
 #include "HardwareSerial.h"
 #include "RtcDateTime.h"
 
@@ -19,7 +22,10 @@ void RTC_Module::RTC_Module_init()
   Serial.print(__DATE__);
   Serial.println(__TIME__);
 
-  Rtc.Begin();
+  if (!begin()) {
+        Serial.println("RTC initialization failed!");
+        return;
+  };
 
   RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
   printDateTime(compiled);

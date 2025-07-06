@@ -22,7 +22,9 @@
  * @def IR_SEND_PIN_
  * @brief GPIO pin used for sending IR emitter.
  */
-#define IR_SEND_PIN_ 4
+//#define IR_SEND_PIN_ 4
+//#define IR_SEND_PIN_ 32
+//#define IR_SEND_PIN 32
 
 /**
  * @def IR_RECEIVE_PIN
@@ -34,7 +36,8 @@
  * @def TV_STATUS_PIN
  * @brief GPIO pin used to monitor TV status On/Off.
  */
-#define TV_STATUS_PIN 32  
+//#define TV_STATUS_PIN 32  
+#define TV_STATUS_PIN 39  
 
 /**
  * @def RGB_RED_PIN

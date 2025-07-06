@@ -11,7 +11,7 @@
  #define RTC_MOD
  
  //  #include "RtcDateTime.h"
- #include <RtcDS1302.h>
+ //#include <RtcDS1302.h>
  #include <ThreeWire.h>
  #include <Arduino.h>
  

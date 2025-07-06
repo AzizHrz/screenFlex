@@ -1,6 +1,9 @@
 #include "network_stack.h"
 #include "Mylog.h"
 #include <ArduinoJson.h>
+
+
+
 NetworkStack::NetworkStack() : MyMacAddr{0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}
 {
     WoLRepetion=10 ;
@@ -57,14 +60,15 @@ void NetworkStack::InitWifiModule(){
 
 #endif
 }
+/* // old init ethernet module version
 void NetworkStack::InitEthernetModule(uint8_t cs_pin){ 
-    #if (DISABLE_ETHERNET == 1)
+    #if (ENABLE_ETHERNET == 0)
     MyLog(INFO, "Ethernet Module is Disabled");
-    /*    
+        
 
-        This macro is only for testing purposes when we don't need to test the WoL
-        to speed up the testing process
-    */
+       // This macro is only for testing purposes when we don't need to test the WoL
+        //to speed up the testing process
+    
     return;
 #else
     MyLog(INFO, "Enabling the Ethernet Module");
@@ -110,6 +114,88 @@ void NetworkStack::InitEthernetModule(uint8_t cs_pin){
 
     // LocalIP = WiFi.localIP();
 #endif
+
+//If the WiFi module is not enabled, we will be using the Ethernet Module
+//for both WoL and server communication.
+
+#if (ENABLE_WIFI == 0)
+    Serial.print("IP Address: ");
+    LocalIP = Ethernet.localIP();
+    MyLogF(INFO, "Local IP Address %s", LocalIP.toString());
+#endif
+}
+
+*/
+// New version of InitEthernetModule
+bool NetworkStack::InitEthernetModule(uint8_t cs_pin){ 
+#if (ENABLE_ETHERNET == 0)
+    MyLog(INFO, "Ethernet Module is Disabled");
+    /*    
+
+        This macro is only for testing purposes when we don't need to test the WoL
+        to speed up the testing process
+    */
+    return false;
+#else
+     
+    MyLog(INFO, "Enabling the Ethernet Module");
+
+    Ethernet.init(cs_pin);
+    Ethernet.begin(MyMacAddr);
+    Serial.println("Testing eth  connection  ");
+    if (Ethernet.hardwareStatus() == EthernetNoHardware)
+    {
+        Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+        Serial.flush();
+    }
+
+    EthernetLinkStatus st;
+    Serial.println("TEsting Link status ");
+    st = Ethernet.linkStatus();
+    static uint8_t attemptCount = 0;
+    static unsigned long lastAttemptTime = 0;
+    while (st != LinkON && attemptCount < 5 && millis() - lastAttemptTime > 20)
+    {
+        // Retry every 20 milliseconds
+            lastAttemptTime = millis();
+            attemptCount++;
+            Serial.print(".");
+            Serial.flush();
+        
+        
+        st = Ethernet.linkStatus();
+        switch (st)
+        {
+        case LinkON:
+            Serial.println("LINK ON ");
+            break;
+        case Unknown:
+            Serial.println("UNKNOW");
+            break;
+        case LinkOFF:
+            Serial.println("LINK OFF");
+            break;
+        default:
+            Serial.println("ERROR ... ");
+            break;
+        }
+    }
+    if (st != LinkON)
+    {
+        MyLog(ERROR, "Failed to establish Ethernet link after multiple attempts.");
+        return false; // Return false if link could not be established
+    }else
+    {
+        MyLog(INFO, "Ethernet link established successfully.");
+        delay(1000);
+        Serial.println("Ethernet initialized");
+        return true; // Return true if link was established successfully
+    }
+
+    
+
+    // LocalIP = WiFi.localIP();
+#endif
 /*
 If the WiFi module is not enabled, we will be using the Ethernet Module
 for both WoL and server communication.
@@ -120,6 +206,7 @@ for both WoL and server communication.
     MyLogF(INFO, "Local IP Address %s", LocalIP.toString());
 #endif
 }
+
 
 uint8_t *NetworkStack::GetMacaddr()
 {

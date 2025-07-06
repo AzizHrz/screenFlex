@@ -49,7 +49,7 @@
 #include "Hardware.h"
 // Define macros for input and output pin etc.
 #if !defined(IR_SEND_PIN)
-#define IR_SEND_PIN         4
+#define IR_SEND_PIN         32
 #endif
 
 /*
@@ -74,7 +74,7 @@
 //#define DEBUG // Activate this for lots of lovely debug output from the decoders.
 
 #define APPLICATION_PIN 12
-#define SEND_BUTTON_PIN                     APPLICATION_PIN
+#define SEND_BUTTON_PIN APPLICATION_PIN
 
 #define DELAY_BETWEEN_REPEATS_MILLIS        70
 

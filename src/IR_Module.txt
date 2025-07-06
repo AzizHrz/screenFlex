@@ -174,7 +174,7 @@ bool IRHandler::receiveIR(bool saveData)
             if (saveData)
             {
                 storeData(irData);
-                MyLog(INFO, "DATA Stored ...");
+                MyLog(INFO, "IR DATA Stored ...");
             }
             MyIrReceiver.resume(); // Ready to receive next data
             MyIrReceiver.stop();
@@ -239,10 +239,13 @@ void IRHandler::sendIR()
     else if (receivedData.protocol == SAMSUNG)
     {
         Serial.println("SENDING SAMSUNG PROTOCOLE ");
-        MyIrSender.sendSamsung(receivedData.IR_Adress, receivedData.IR_Command, 38);
-        // MyIrSender.sendRaw(MyIrReceiver.decodedIRData.rawDataPtr->rawbuf,MyIrReceiver.decodedIRData.rawlen,38);
+       // MyIrSender.sendSamsung(receivedData.IR_Adress, receivedData.IR_Command, 38);
+       // by aziz
+        IrSender.sendSamsung(receivedData.IR_Adress,receivedData.IR_Command,19);
+     
+       // MyIrSender.sendRaw(MyIrReceiver.decodedIRData.rawDataPtr->rawbuf,MyIrReceiver.decodedIRData.rawlen,38);
         // MyIrSender.write(MyIrReceiver.decodedIRData);
-        // Send Samsung IR command (implement logic for Samsung)
+        // Send Samsung IR command (implement++ logic for Samsung)
     }
     else if (receivedData.protocol == LG)
     {

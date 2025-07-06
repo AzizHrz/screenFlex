@@ -38,14 +38,15 @@ const uint8_t targetMAC[] = {0x00, 0xe0, 0x4c, 0x38, 0xcd, 0xc2};
  * @note 1 to disable, 0 to enable.
  */
 #define DISABLE_ETHERNET 0
+#define ENABLE_ETHERNET 0
 
 /** 
  * @def ENABLE_WIFI
  * @brief Flag to enable or disable WiFi.
  * @note 1 to enable, 0 to disable.
  */
-#define ENABLE_WIFI 0
-
+//#define ENABLE_WIFI 0
+#define ENABLE_WIFI 1
 /** 
  * @def MyServ
  * @brief Flag to select the server.
@@ -58,7 +59,7 @@ const uint8_t targetMAC[] = {0x00, 0xe0, 0x4c, 0x38, 0xcd, 0xc2};
  * @brief Flag to select WiFi or Ethernet for OTA.
  * @note 1 = WiFi, 0 = Ethernet.
  */
-#define OTA_WIFI_ETH 0
+#define OTA_WIFI_ETH 1
 
 /** 
  * @def WIFI_PASSWD
@@ -117,4 +118,4 @@ const uint8_t targetMAC[] = {0x00, 0xe0, 0x4c, 0x38, 0xcd, 0xc2};
     #define SERVER_PORT SCREE_FLEX_SERV_PORT /**< Default Server Port */
 #endif
 
-#endif // MYCONF_H
+#endif//  MYCONF_H

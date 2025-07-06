@@ -2,3 +2,4 @@
 compile_commands.json
 .vscode
 gen_compile_commands.py
+lib

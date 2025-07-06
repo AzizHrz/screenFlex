@@ -15,7 +15,11 @@ ButtonModule::ButtonModule(uint8_t _pinbtn)
 
 void ButtonModule::InitButton()
 {
-    pinMode(pinbtn, INPUT);
+    //pinMode(pinbtn, INPUT);
+    pinMode(pinbtn, INPUT_PULLUP);
+   // pinMode(pinbtn, INPUT_PULLDOWN); // Assuming the button is active LOW
+
+   
 }
 void ButtonModule::HandleButton_5s()
 {
@@ -23,7 +27,7 @@ void ButtonModule::HandleButton_5s()
     // static bool long_pressed_d11etected = false;
     static unsigned long period = 0;
 
-    bool btn_state = digitalRead(pinbtn); //! // Assuming active LOW button
+    bool btn_state = !digitalRead(pinbtn); //! // Assuming active LOW button
     /* Serial.println(btn_state); */
     if (btn_state)
     { // Button is pressed
