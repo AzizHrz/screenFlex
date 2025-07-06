@@ -65,7 +65,7 @@ extern const char* longDays[] ;
 extern String DEVICE_ID;
 extern bool useEthernet;
 extern IPAddress serverIp;
-extern const int serverPort;
+//extern const int SERVER_PORT;
 extern WiFiClient client;
 extern ScheduleData defaultSchedule;
 
@@ -309,9 +309,9 @@ bool updateScheduleFromServer() {
     MyLog(INFO, "Checking for schedule updates...");
     HTTPClient http;
     
-    String url = "http://" + serverIp.toString() + ":" + String(serverPort) + "/api/v1/esp/" + DEVICE_ID + "/schedule";
+    String url = "http://" + serverIp.toString() + ":" + String(SERVER_PORT) + "/api/v1/esp/" + DEVICE_ID + "/schedule";
     if (useEthernet) {
-        http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/schedule");
+        http.begin(serverIp.toString(), SERVER_PORT, "/api/v1/esp/" + DEVICE_ID + "/schedule");
     } else {
         http.begin(client, url);
     }

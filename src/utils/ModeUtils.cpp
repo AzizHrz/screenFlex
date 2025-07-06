@@ -13,7 +13,7 @@ extern TVState desiredTVState;
 extern String DEVICE_ID;
 extern bool useEthernet;
 extern IPAddress serverIp;
-extern const int serverPort;
+//extern const int SERVER_PORT;
 extern WiFiClient client;
 
 void updateDesiredState() {
@@ -29,10 +29,10 @@ bool fetchModeFromServer() {
     }
 
     HTTPClient http;
-    String url = "http://" + serverIp.toString() + ":" + String(serverPort) + "/api/v1/esp/" + DEVICE_ID + "/mode";
+    String url = "http://" + serverIp.toString() + ":" + String(SERVER_PORT) + "/api/v1/esp/" + DEVICE_ID + "/mode";
 
     if (useEthernet) {
-        http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/mode");
+        http.begin(serverIp.toString(), SERVER_PORT, "/api/v1/esp/" + DEVICE_ID + "/mode");
     } else {
         http.begin(client, url);
     }

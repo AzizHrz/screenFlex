@@ -1,8 +1,6 @@
 #ifndef MY_IR_MODULE_H_
 #define MY_IR_MODULE_H_
 
-
-
 #include <Arduino.h>
 #include <IRremote.hpp>
 #include <IRProtocol.h>
@@ -161,9 +159,6 @@ uint8_t IRHandler::getTVStatus(uint16_t checkDuration) {
 }*/
     
     }
-
-
-
 
 void IRHandler::PrintMyIRData( MyIRData& data){ 
   Serial.println("------ MyIRData ------");

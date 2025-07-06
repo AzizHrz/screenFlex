@@ -23,7 +23,7 @@ extern NetworkStack network;
 extern String DEVICE_ID;
 extern WiFiClient client;
 extern IPAddress serverIp;
-extern const int serverPort;
+//extern const int SERVER_PORT;
 //extern String ssid;
 //extern String password;
 extern bool useEthernet;
@@ -99,9 +99,9 @@ void reportTVStateToServer() {
 
     HTTPClient http;
     if (useEthernet) {
-        http.begin(serverIp.toString(), serverPort, path);
+        http.begin(serverIp.toString(), SERVER_PORT, path);
     } else {
-        http.begin(client, "http://" + serverIp.toString() + ":" + String(serverPort) + path);
+        http.begin(client, "http://" + serverIp.toString() + ":" + String(SERVER_PORT) + path);
     }
 
     http.addHeader("Content-Type", "application/json");

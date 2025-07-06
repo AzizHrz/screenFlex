@@ -65,7 +65,7 @@ EthernetClient ethClient;
 const int W5500_CS_PIN = 33;
 bool useEthernet = false; // true for Ethernet, false for WiFi
 IPAddress serverIp(18 ,235, 73, 121);
-const int serverPort = 5000;
+//const int SERVER_PORT = 5000;
 NetworkStack network;
 
 
@@ -247,10 +247,10 @@ void syncWithServer() {
 
      // 3. Handle WiFi config updates from server
     HTTPClient http;
-    String url = "http://" + serverIp.toString() + ":" + String(serverPort) + "/api/v1/esp/" + DEVICE_ID + "/wifi"; // Changed endpoint
+    String url = "http://" + serverIp.toString() + ":" + String(SERVER_PORT) + "/api/v1/esp/" + DEVICE_ID + "/wifi"; // Changed endpoint
     
     if (useEthernet) {
-        http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/wifi");
+        http.begin(serverIp.toString(), SERVER_PORT, "/api/v1/esp/" + DEVICE_ID + "/wifi");
     } else {
         http.begin(client, url);
     }
@@ -298,10 +298,10 @@ void syncWithServer() {
     // 4. Handle state based on current mode
     if (!currentMode.useSchedule) {
         HTTPClient http;
-        String url = "http://" + serverIp.toString() + ":" + String(serverPort) + "/api/v1/esp/" + DEVICE_ID + "/tv";
+        String url = "http://" + serverIp.toString() + ":" + String(SERVER_PORT) + "/api/v1/esp/" + DEVICE_ID + "/tv";
 
         if (useEthernet) {
-            http.begin(serverIp.toString(), serverPort, url);
+            http.begin(serverIp.toString(), SERVER_PORT, url);
         } else {
             http.begin(client, url);
         }
@@ -529,9 +529,9 @@ bool pingServer() {
     }
 
     HTTPClient http;
-    String url = "http://" + serverIp.toString() + ":" + String(serverPort) + "/api/v1/esp/" + DEVICE_ID + "/ping";
+    String url = "http://" + serverIp.toString() + ":" + String(SERVER_PORT) + "/api/v1/esp/" + DEVICE_ID + "/ping";
     if (useEthernet) {
-        http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/ping");
+        http.begin(serverIp.toString(), SERVER_PORT, "/api/v1/esp/" + DEVICE_ID + "/ping");
     } else {
         http.begin(client, url);
     }
@@ -649,7 +649,7 @@ void setup() {
     rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
     // DEVICE_ID = generateDeviceId();
     network.setServerIp(serverIp);
-    network.setSercerPort(serverPort);
+    network.setSercerPort(SERVER_PORT);
 
     // Try Ethernet first
     if (!initEthernet()) {

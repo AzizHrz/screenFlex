@@ -22,7 +22,7 @@
 extern WebServer otaServer;
 extern bool useEthernet;
 extern IPAddress serverIp;
-extern const int serverPort;
+//extern const int SERVER_PORT;
 extern WiFiClient client;
 extern String DEVICE_ID;
 extern NetworkStack network;
@@ -118,10 +118,10 @@ bool checkForUpdates() {
 
     HTTPClient http;
     String path = "/api/v1/esp/" + DEVICE_ID + "/firmware";
-    String url = "http://" + serverIp.toString() + ":" + String(serverPort) + path;
+    String url = "http://" + serverIp.toString() + ":" + String(SERVER_PORT) + path;
 
     if (useEthernet) {
-        http.begin(serverIp.toString(), serverPort, path);
+        http.begin(serverIp.toString(), SERVER_PORT, path);
     } else {
         http.begin(client, url);
     }

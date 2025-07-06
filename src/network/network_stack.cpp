@@ -8,7 +8,7 @@
 #include "esp_task_wdt.h"
 
 IPAddress serverIP = SERVER_IP;
-int ServerPort = SERVER_PORT; 
+//int serverPort = SERVER_PORT; 
 
 NetworkStack::NetworkStack() : MyMacAddr{0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}
 {
@@ -99,7 +99,7 @@ String NetworkStack::HTTPGET(const String &reqPath)
 String NetworkStack::HTTPPOST(const String &reqPath, const String &contentType, const String &data)
 {
     String response = "";
-    if (client.connect(serverIP, ServerPort))
+    if (client.connect(serverIP, SERVER_PORT))
     {
         client.println("POST " + reqPath + " HTTP/1.1");
         client.println("Host: " + serverIP.toString());
