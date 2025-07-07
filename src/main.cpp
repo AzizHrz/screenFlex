@@ -16,6 +16,9 @@
 #include "Mylog.h"
 #include <Arduino.h>
 
+#include <HTTPUpdate.h> // Include the ESP32 HTTP Update library
+
+
 
 //IRHandler irHandler(IR_RECEIVE_PIN, IR_SEND_PIN_, TV_STATUS_PIN);
 IRHandler irHandler(IR_RECEIVE_PIN, 32, TV_STATUS_PIN);
@@ -31,6 +34,8 @@ volatile bool Wake_PC_STATE_finished = false;
 unsigned long btime = 0;
 
 static unsigned long lastStateVerify = 0;
+static unsigned long lastPing = 0;
+
 
 RtcDateTime nowTime;
 
@@ -40,6 +45,11 @@ bool useEthernet = false;
 const char* ssid = "Aziz_s_iPhone";
 const char* passwd = "just100$";
 
+struct WiFiConfig {
+  String ssid;
+  String password;
+};
+
 //==============================================================
 
 EthernetClient ethClient;
@@ -47,7 +57,6 @@ WiFiClient client;
 
 IPAddress serverIp(18 ,235, 73, 121); // Change to your Flask server IP
 const int serverPort = 5000;
-
 
 // TV State Enumeration - Add this before PersistentData struct
 enum TVState {
@@ -60,30 +69,109 @@ enum TVState {
 TVState currentTVState = TV_UNKNOWN;
 TVState desiredTVState = TV_UNKNOWN;
 
-bool useSchedule; // true = use schedule, false = use server commands
+bool scheduleModeEnabled; // true = use schedule, false = use server commands
+bool currentMode; // true = use schedule, false = use server commands
 
+// Then declare your PersistentData struct
+struct PersistentData {
+    bool scheduleModeEnabled; // true = use schedule, false = use server commands
+    ScheduleData schedule;
+    TVState lastCommandedState; // Add this to track last server command
+    unsigned long lastUpdate;   // Timestamp of last update
+};
+
+// Add this global variable
+PersistentData persistentData;
+
+//
+#define MODE_FILE "/mode.json"
+#define SCHEDULE_FILE "/schedule.json"
+#define WIFI_CONFIG_FILE "/wifi_config.json"
+//#define IR_DATA_FILE "/ir_data.json"
+//#define VERSION_FILE "/version.json"
+
+String DEVICE_ID = "SOLUTIONGENERIQUE1";
+/*
+// the old way to store the schedule data
 struct ScheduleData {
   bool active;
+  //bool dayEnabled[7]; // true for each day of the week
   String days[7];
   int daysCount;
   String startTime;
   String endTime;
   String timezone;
 };
+ScheduleData currentSchedule;
 
-// Then declare your PersistentData struct
-struct PersistentData {
-    bool useSchedule; // true = use schedule, false = use server commands
-    ScheduleData schedule;
-    TVState lastCommandedState; // Add this to track last server command
-    unsigned long lastUpdate;   // Timestamp of last update
+void convertFromJson(JsonVariantConst src, ScheduleData& dst) { // Convert JSON variant to ScheduleData struct
+   // to avoid this error
+   // "lib/ArduinoJson/src/ArduinoJson/Variant/ConverterImpl.hpp:24:20: error: no matching function
+   // for call to 'convertFromJson(ArduinoJson6201_F1::JsonVariantConst&, ScheduleData&)'
+   //  convertFromJson(src, result);  // Error here? See https://arduinojson.org/v6/unsupported-as/"
+    dst.active = src["active"] | dst.active;
+    dst.timezone = src["timezone"] | dst.timezone;
+    dst.startTime = src["start_time"] | dst.startTime;
+    dst.endTime = src["end_time"] | dst.endTime;
+
+    dst.daysCount = 0;
+    JsonArrayConst daysArray = src["weekdays"];
+    for (JsonVariantConst day : daysArray) {
+        if (dst.daysCount < 7) {
+            dst.days[dst.daysCount++] = day.as<String>();
+        }
+    }
+}
+*/
+struct TimePeriod {
+  String startTime;
+  String endTime;
 };
 
-//
-#define MODE_FILE "/mode.json"
+struct ScheduleDay {
+  std::vector<TimePeriod> periods;  // Multiple time periods for one day
+};
+
+struct ScheduleData {
+  bool active;
+  bool dayEnabled[7];  // Sunday=0, ..., Saturday=6
+  ScheduleDay days[7]; // One ScheduleDay per weekday
+  String timezone;
+};
+
+ScheduleData currentSchedule;
+
+// Function to convert JSON variant to ScheduleData struct
+void convertFromJson(JsonVariantConst src, ScheduleData& dst) {
+  dst.active = src["active"] | dst.active;
+  dst.timezone = src["timezone"] | dst.timezone;
+
+  // Initialize all days as disabled
+  for (int i = 0; i < 7; i++) {
+    dst.dayEnabled[i] = false;
+    dst.days[i].periods.clear();
+  }
+
+  // Read the "weekdays" array from JSON
+  JsonArrayConst weekdays = src["weekdays"];
+  for (JsonObjectConst dayEntry : weekdays) {
+    int dayIndex = dayEntry["day"] | -1;
+    if (dayIndex >= 0 && dayIndex < 7) {
+      dst.dayEnabled[dayIndex] = true;
+
+      JsonArrayConst periods = dayEntry["periods"];
+      for (JsonObjectConst period : periods) {
+        TimePeriod p;
+        p.startTime = period["start_time"] | "";
+        p.endTime = period["end_time"] | "";
+        dst.days[dayIndex].periods.push_back(p);
+      }
+    }
+  }
+}
 
 
-bool saveMode(const bool& useSchedule) {
+bool saveMode(const bool& scheduleModeEnabled) {
   if (!LittleFS.begin()) {
     MyLog(ERROR, "Failed to mount LittleFS");
     return false;
@@ -94,7 +182,7 @@ bool saveMode(const bool& useSchedule) {
     return false;
   }
   DynamicJsonDocument doc(128);
-  doc["use_schedule"] = useSchedule;
+  doc["use_schedule"] = scheduleModeEnabled;
   size_t bytesWritten = serializeJson(doc, file);
   file.close();
   if (bytesWritten == 0) {
@@ -105,32 +193,120 @@ bool saveMode(const bool& useSchedule) {
   return true;
 }
 
-bool loadMode(bool& useSchedule) {
+bool loadMode(bool& scheduleModeEnabled) { // Load the mode from LittleFS
   if (!LittleFS.exists(MODE_FILE)) {
     MyLog(INFO, "No mode file, using default (schedule)");
-    useSchedule = true; // Default to schedule
+    scheduleModeEnabled = true; // Default to schedule
     return false;
   }
   File file = LittleFS.open(MODE_FILE, "r");
   if (!file) {
     MyLog(ERROR, "Failed to open mode file");
-    useSchedule = true; // Default to schedule
+    scheduleModeEnabled = true; // Default to schedule
     return false;
   }
   DynamicJsonDocument doc(128);
   DeserializationError error = deserializeJson(doc, file);
   if (error) {
     MyLogF(ERROR, "Failed to parse mode: %s", error.c_str());
-    useSchedule = true; // Default to schedule
+    scheduleModeEnabled = true; // Default to schedule
     file.close();
     return false;
   }
-  useSchedule = doc["use_schedule"];
+  scheduleModeEnabled = doc["use_schedule"];
   file.close();
   return true;
 }
 
+bool saveSchedule(const ScheduleData& schedule) {
+  if (!LittleFS.begin()) {
+    MyLog(ERROR, "Failed to mount LittleFS");
+    return false;
+  }
 
+  File file = LittleFS.open(SCHEDULE_FILE, "w");
+  if (!file) {
+    MyLog(ERROR, "Failed to open schedule file for writing");
+    return false;
+  }
+
+  DynamicJsonDocument doc(1024);
+  doc["active"] = schedule.active;
+  doc["timezone"] = schedule.timezone;
+  doc["start_time"] = schedule.startTime;
+  doc["end_time"] = schedule.endTime;
+
+  JsonArray daysArray = doc.createNestedArray("weekdays");
+  for (int i = 0; i < schedule.daysCount; i++) {
+    if (schedule.days[i].length() > 0) { // Only save non-empty days
+      daysArray.add(schedule.days[i]);
+    }
+  }
+
+  size_t bytesWritten = serializeJson(doc, file);
+  file.close();
+
+  if (bytesWritten == 0) {
+    MyLog(ERROR, "Failed to write schedule");
+    return false;
+  }
+
+  MyLogF(INFO, "Schedule saved (%d bytes)", bytesWritten);
+  return true;
+}
+
+
+bool saveWiFiConfig(const WiFiConfig& config) {
+  if (!LittleFS.begin()) {
+    MyLog(ERROR, "Failed to mount LittleFS");
+    return false;
+  }
+
+  File file = LittleFS.open(WIFI_CONFIG_FILE, "w");
+  if (!file) {
+    MyLog(ERROR, "Failed to open WiFi config file");
+    return false;
+  }
+
+  DynamicJsonDocument doc(256);
+  doc["ssid"] = config.ssid;
+  doc["password"] = config.password;
+
+  size_t bytesWritten = serializeJson(doc, file);
+  file.close();
+  return bytesWritten > 0;
+}
+
+bool loadWiFiConfig(WiFiConfig& config) {
+  if (!LittleFS.begin()) {
+    MyLog(ERROR, "Failed to mount LittleFS");
+    return false;
+  }
+
+  if (!LittleFS.exists(WIFI_CONFIG_FILE)) {
+    MyLog(INFO, "No WiFi config file found");
+    return false;
+  }
+
+  File file = LittleFS.open(WIFI_CONFIG_FILE, "r");
+  if (!file) {
+    MyLog(ERROR, "Failed to open WiFi config file");
+    return false;
+  }
+
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, file);
+  file.close();
+
+  if (error) {
+    MyLogF(ERROR, "Failed to parse WiFi config: %s", error.c_str());
+    return false;
+  }
+
+  config.ssid = doc["ssid"].as<String>();
+  config.password = doc["password"].as<String>();
+  return true;
+}
 
 bool connectToNetwork() {
     //network.InitEthernetModule(W5500_CS);
@@ -145,9 +321,11 @@ bool connectToNetwork() {
 
         network.InitWifiModule();
         useEthernet = false;
+        return false;
    } else {
       MyLog(INFO, "Ethernet module initialized successfully");
         useEthernet = true;
+        return true;
    }
 /*
 // ayoub logic 
@@ -227,6 +405,139 @@ bool connectToNetwork() {
 }
 
 
+bool saveCurrentVersion(const String& version) {
+  File file = LittleFS.open("/version.json", "w");
+  if (!file) {
+    MyLog(ERROR, "Failed to open version file for writing");
+    return false;
+  }
+
+  DynamicJsonDocument doc(128);
+  doc["version"] = version;
+
+  serializeJson(doc, file);
+  file.close();
+
+  MyLogF(INFO, "Saved new firmware version: %s", version.c_str());
+  return true;
+}
+
+String loadCurrentVersion() {
+  if (!LittleFS.exists("/version.json")) {
+    MyLog(INFO, "No version file found, creating one with default version");
+    saveCurrentVersion(FIRMWARE_VERSION); // FIRMWARE_VERSION should be defined
+    return FIRMWARE_VERSION;
+  }
+
+  File file = LittleFS.open("/version.json", "r");
+  if (!file) {
+    MyLog(ERROR, "Failed to open version file");
+    return FIRMWARE_VERSION;
+  }
+
+  DynamicJsonDocument doc(128);
+  DeserializationError error = deserializeJson(doc, file);
+  file.close();
+
+  if (error) {
+    MyLogF(ERROR, "Failed to parse version: %s", error.c_str());
+    return FIRMWARE_VERSION;
+  }
+
+  return doc["version"].as<String>();
+}
+
+bool is_newer_version(const String& current, const String& available) {
+    int c_major, c_minor, c_patch;
+    int a_major, a_minor, a_patch;
+
+    sscanf(current.c_str(), "%d.%d.%d", &c_major, &c_minor, &c_patch);
+    sscanf(available.c_str(), "%d.%d.%d", &a_major, &a_minor, &a_patch);
+
+    if (a_major > c_major) return true;
+    if (a_major == c_major && a_minor > c_minor) return true;
+    if (a_major == c_major && a_minor == c_minor && a_patch > c_patch) return true;
+
+    return false;
+}
+bool performOTAUpdate(String firmwareUrl) {
+  MyLog(INFO, "Starting OTA update...");
+  rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
+  
+  WiFiClient client;
+  
+  // Configure update callbacks
+  HTTPUpdateResult ret = httpUpdate.update(client, firmwareUrl);
+  
+  bool success = false;
+
+  switch(ret) {
+    case HTTP_UPDATE_FAILED:
+      MyLogF(ERROR, "OTA failed: %s", httpUpdate.getLastErrorString().c_str());
+      success = false;
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      MyLog(INFO, "No updates available");
+      success = true; // Not a failure, but no update was applied
+      break;
+    case HTTP_UPDATE_OK:
+      MyLog(INFO, "OTA update completed");
+      success = true;
+      break;
+  }
+  
+  rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
+  
+  return success;
+}
+
+#if ENABLE_OTA
+bool checkForUpdates() {
+  String currentVersion = loadCurrentVersion();
+  MyLogF(INFO, "Current version: %s", currentVersion.c_str());
+
+  HTTPClient http;
+  String url = "http://" + serverIp.toString() + ":" + String(serverPort) + "/api/v1/esp/" + DEVICE_ID + "/firmware";
+  
+  if (useEthernet) {
+    http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/firmware");
+  } else {
+    http.begin(client, url);
+  }
+
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (!error && doc["success"]) {
+      String latestVersion = doc["data"]["latest_version"].as<String>();
+      bool updateAvailable = doc["data"]["update_available"].as<bool>();
+      String firmwareUrl = doc["data"]["url"].as<String>();
+
+      MyLogF(INFO, "Latest version: %s, Update available: %d", 
+            latestVersion.c_str(), updateAvailable);
+
+      if (updateAvailable) {
+        MyLog(INFO, "New version available, updating...");
+        if (performOTAUpdate(firmwareUrl)) {
+          saveCurrentVersion(latestVersion); // ✅ Save new version after success
+          ESP.restart(); // Force restart after successful update
+          return true;
+        }
+      } else {
+        MyLog(INFO, "Firmware is up to date");
+      }
+    }
+  } else {
+    MyLogF(ERROR, "Update check failed: %d", httpCode);
+  }
+  http.end();
+  return false;
+}
+#endif
+
 bool pingServer() {
     // Check network connection first
     if (!connectToNetwork()) {
@@ -269,7 +580,7 @@ bool pingServer() {
 
             // Save returned values
             String serverMode = data["mode"].as<String>();
-            useSchedule = (serverMode == "schedule");
+            scheduleModeEnabled = (serverMode == "schedule");
             saveMode(currentMode);
 
             desiredTVState = (data["tv_state"].as<String>() == "on") ? TV_ON : TV_OFF;
@@ -517,7 +828,7 @@ void loop()
    Serial.print("RTC Current Time: ");
    nowTime = rtc.RTC_getDateTime();
    Serial.println(rtc.rtcDateTimeToString(nowTime));
-   if(){
+   if(millis() - lastPing > 30000){
       if (connectToNetwork()){
          MyLog(INFO, "Connected to network, pinging server ...");
          if (pingServer()) {
