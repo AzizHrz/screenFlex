@@ -52,7 +52,7 @@ const uint8_t targetMAC[] = {0x00, 0xe0, 0x4c, 0x38, 0xcd, 0xc2};
  * @brief Flag to select the server.
  * @note 1 = Test Server, 0 = Production Server.
  */
-#define MyServ 0
+#define MyServ 1
 
 /** 
  * @def OTA_WIFI_ETH
@@ -83,7 +83,13 @@ const uint8_t targetMAC[] = {0x00, 0xe0, 0x4c, 0x38, 0xcd, 0xc2};
  * @def MYSERV_IP
  * @brief IP address of the test server.
  */
-#define MYSERV_IP (192, 168, 1, 14)
+//172.20.10.2:5000
+// #define MYSERV_IP (192, 168, 1, 14) 
+// #define MYSERV_IP (172, 20, 10, 2) 
+//92.168.1.173:5000
+// my server ip
+//#define MYSERV_IP (192, 168, 1, 173) 
+#define MYSERV_IP (172, 16, 137, 146) 
 
 /** 
  * @def MYSERV_PORT

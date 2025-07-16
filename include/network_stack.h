@@ -11,16 +11,13 @@
 #ifndef NETWORK_STACK_H
 #define NETWORK_STACK_H
 
-
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <Update.h>
 #include <Ethernet.h>
 #include <HTTPClient.h>
 #include "conf.h"
-
-
-
+#include "Mylog.h"
 
 /**
  * @class NetworkStack
@@ -38,7 +35,11 @@ public:
      * @brief Sets the server IP address.
      * @param ip The IP address of the server.
      */
-    void setServerIp(IPAddress ip) { serverIP = ip; }
+    void setServerIp(IPAddress ip)
+    {
+        MyLogF(INFO, "Updating IP address to %s ", ip.toString());
+        serverIP = ip;
+    }
 
     /**
      * @brief Sets the server port.
@@ -68,7 +69,7 @@ public:
      * @brief Initializes the Ethernet module with a specific chip select (CS) pin.
      * @param cs_pin The chip select pin for the Ethernet module.
      */
-    //void InitEthernetModule(uint8_t cs_pin);
+    // void InitEthernetModule(uint8_t cs_pin);
 
     bool InitEthernetModule(uint8_t cs_pin);
 
@@ -95,7 +96,11 @@ public:
      * @return The firmware version as a string.
      */
     const String GetFirmwareVersion();
-
+    /**
+     * @brief Retrieves schedule from server.
+     * @return The schedule as a string.
+     */
+    const String GetSchedule_HTTP();
     /**
      * @brief Sends a Wake-on-LAN (WoL) signal to a target device.
      * @param TagrgetMac The MAC address of the target device.
@@ -179,24 +184,24 @@ private:
 
 private:
     TaskHandle_t handler; ///< Task handle for background tasks.
-    int ServerPort; ///< Server port number.
-    IPAddress serverIP; ///< Server IP address.
-    IPAddress LocalIP; ///< Local IP address.
+    int ServerPort;       ///< Server port number.
+    IPAddress serverIP;   ///< Server IP address.
+    IPAddress LocalIP;    ///< Local IP address.
     uint8_t MyMacAddr[6]; ///< Device MAC address.
-    bool isOTAEnabled; ///< Flag indicating if OTA updates are enabled.
-    uint8_t WoLRepetion; ///< Number of repetitions for Wake-on-LAN.
+    bool isOTAEnabled;    ///< Flag indicating if OTA updates are enabled.
+    uint8_t WoLRepetion;  ///< Number of repetitions for Wake-on-LAN.
 
-    /** 
- * @brief Selects which client instance to use to perform the HTTP requests.
- * 
- * If `OTA_WIFI_ETH == 1`, we are using WiFi client instance
- * else we are using the ethernet client instance
- */
+    /**
+     * @brief Selects which client instance to use to perform the HTTP requests.
+     *
+     * If `OTA_WIFI_ETH == 1`, we are using WiFi client instance
+     * else we are using the ethernet client instance
+     */
 #if (OTA_WIFI_ETH == 0)
     EthernetClient client; ///< Ethernet client instance.
 #else
-    WiFiClient client; ///< Wi-Fi client instance.
-    const char *ssid = ""; ///< Wi-Fi SSID.
+    WiFiClient client;       ///< Wi-Fi client instance.
+    const char *ssid = "";   ///< Wi-Fi SSID.
     const char *passwd = ""; ///< Wi-Fi password.
 #endif
 };

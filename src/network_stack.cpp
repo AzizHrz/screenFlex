@@ -1,7 +1,7 @@
 #include "network_stack.h"
 #include "Mylog.h"
 #include <ArduinoJson.h>
-
+#include "schedule.h"
 
 
 NetworkStack::NetworkStack() : MyMacAddr{0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}
@@ -323,7 +323,9 @@ void NetworkStack::WakeOnLan(const uint8_t TargetMac[], int repetition = 6)
 
 const String NetworkStack::GetFirmwareVersion()
 {
-    MyLogF(INFO, "Requsting Firmware version form Server %s", serverIP.toString());
+   // MyLogF(INFO, "Requsting Firmware version form Server %s", serverIP.toString());
+    MyLogF(INFO, "Requsting Firmware version form Server %s", GetServerIP().toString());
+
 #if (MyServ == 1)
     String response = HTTPGET("/version");
     Serial.println(response);
@@ -350,7 +352,35 @@ const String NetworkStack::GetFirmwareVersion()
     else
         return "";
 }
+const String NetworkStack::GetSchedule_HTTP(){ 
 
+    MyLogF(INFO, "Requsting Firmware version form Server %s", GetServerIP().toString());
+#if (MyServ == 1)
+    String response = HTTPGET("/1/schedule");
+    Serial.println(response);
+#else
+    String response = HTTPGET("/api/v1/screenflex/box/version");
+#endif
+    // TODO: Check if response is empty
+    // StaticJsonDocument<96> doc;
+
+    // DeserializationError error = deserializeJson(doc, response);
+
+    // if (error)
+    // {
+    //     MyLogF(ERROR, "deserializeJson() failed: %s", error.f_str());
+    //     return "";
+    // }
+    return response ; 
+    // bool success = doc["success"]; // true
+    // if (success == true)
+    // {
+    //     const String softv = doc["data"]["version"].as<String>(); // "1.0.0"
+    //     return softv;
+    // }
+    // else
+    //     return "";
+} 
 bool NetworkStack::OTA()
 {
     if (!isOTAEnabled)
@@ -360,7 +390,7 @@ bool NetworkStack::OTA()
     const String newSoftV = GetFirmwareVersion();
     if ( !( strcmp(newSoftV.c_str()  , TEST_SOFTWARE_VERSION) == 0 ) )
     { // TODO enhance comaprison
-        MyLogF(INFO, "Detected a new version from sevrer %s with version %s", serverIP.toString(), newSoftV);
+        MyLogF(INFO, "Detected a new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
         MyLog(INFO, "Perfroming OTA, Dowloading Frimware now ...");
 #if (MyServ == 1)
         const String reqPath = "/update";
@@ -389,61 +419,61 @@ bool NetworkStack::OTA()
     }
     else
     {
-        MyLogF(INFO, "No new version from sevrer %s with version %s", serverIP.toString(), newSoftV);
+        MyLogF(INFO, "No new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
         MyLog(INFO, "Ignoring OTA.");
         return false;
     }
-}
-int NetworkStack::RequestOTA(const String &reqPath)
-{
-    // TODO: ADD MD5 Check
-
-    // Connect to the server
-    if (client.connect(serverIP, ServerPort))
+    }
+    int NetworkStack::RequestOTA(const String &reqPath)
     {
-        Serial.println("Connected to OTA server");
+        // TODO: ADD MD5 Check
 
-        // Send HTTP GET request
-        client.println("GET " + reqPath + " HTTP/1.1");
-        client.println("Host: 203.161.60.31");
-        client.println("Connection: close");
-        client.println();
-
-        // Wait for the server response
-        int contentLength = -1;
-        while (client.connected())
+        // Connect to the server
+        if (client.connect(serverIP, ServerPort))
         {
-            String line = client.readStringUntil('\n');
-            Serial.println(line);
-            if (line.startsWith("Content-Length:"))
-            {
-                contentLength = line.substring(15).toInt();
-            }
-            if (line == "\r")
-            {
-                MyLog(DEBUG, "Finished  receiving Headers");
-                break; // End of headers
-            }
-        }
+            Serial.println("Connected to OTA server");
 
-        if (contentLength <= 0)
-        {
-            MyLog(ERROR, "Invalid content length. OTA update aborted.");
-            client.stop();
-            return -1;
+            // Send HTTP GET request
+            client.println("GET " + reqPath + " HTTP/1.1");
+            client.println("Host: 203.161.60.31");
+            client.println("Connection: close");
+            client.println();
+
+            // Wait for the server response
+            int contentLength = -1;
+            while (client.connected())
+            {
+                String line = client.readStringUntil('\n');
+                Serial.println(line);
+                if (line.startsWith("Content-Length:"))
+                {
+                    contentLength = line.substring(15).toInt();
+                }
+                if (line == "\r")
+                {
+                    MyLog(DEBUG, "Finished  receiving Headers");
+                    break; // End of headers
+                }
+            }
+
+            if (contentLength <= 0)
+            {
+                MyLog(ERROR, "Invalid content length. OTA update aborted.");
+                client.stop();
+                return -1;
+            }
+            else
+            {
+                return contentLength;
+            }
         }
         else
         {
-            return contentLength;
+            MyLogF(ERROR, "Unable to connect to Server: %s, port %d", serverIP.toString(), ServerPort);
+            client.stop();
+            return -2;
         }
     }
-    else
-    {
-        MyLogF(ERROR, "Unable to connect to Server: %s, port %d", serverIP.toString(), ServerPort);
-        client.stop();
-        return -2;
-    }
-}
 int NetworkStack::UpdateFirmware(int FirmwareSize)
 {
     MyLogF(DEBUG, "New Firmware size %d", FirmwareSize);

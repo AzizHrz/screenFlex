@@ -55,15 +55,15 @@ struct WiFiConfig {
 EthernetClient ethClient;
 WiFiClient client;
 
-IPAddress serverIp(18 ,235, 73, 121); // Change to your Flask server IP
-const int serverPort = 5000;
+IPAddress serverIp(SERVER_IP); // Change to your Flask server IP 172.20.10.2 //18 ,235, 73, 121
+const int serverPort = SERVER_PORT;
 
 // TV State Enumeration - Add this before PersistentData struct
 enum TVState {
-  TV_UNKNOWN,      // Initial/unknown state
-  TV_OFF,          // Confirmed OFF state
-  TV_ON,           // Confirmed ON state
-  TV_TRANSITIONING // Currently changing state
+  TV_ON,       // 0  ON state
+  TV_OFF,          // 1 Confirmed OFF state
+  TV_UNKNOWN,          // 2 Confirmed Initial/unknown state
+  TV_TRANSITIONING // 3 Currently changing state
 };
 // Global State Variables
 TVState currentTVState = TV_UNKNOWN;
@@ -71,6 +71,25 @@ TVState desiredTVState = TV_UNKNOWN;
 
 bool scheduleModeEnabled; // true = use schedule, false = use server commands
 bool currentMode; // true = use schedule, false = use server commands
+
+// Schedule Data Structures
+struct TimePeriod {
+  String startTime;
+  String endTime;
+};
+
+struct ScheduleDay {
+  std::vector<TimePeriod> periods;  // Multiple time periods for one day
+};
+
+struct ScheduleData {
+  bool active;
+  bool dayEnabled[7];  // Sunday=0, ..., Saturday=6
+  ScheduleDay days[7]; // One ScheduleDay per weekday
+  String timezone;
+};
+
+ScheduleData currentSchedule;
 
 // Then declare your PersistentData struct
 struct PersistentData {
@@ -123,23 +142,6 @@ void convertFromJson(JsonVariantConst src, ScheduleData& dst) { // Convert JSON 
     }
 }
 */
-struct TimePeriod {
-  String startTime;
-  String endTime;
-};
-
-struct ScheduleDay {
-  std::vector<TimePeriod> periods;  // Multiple time periods for one day
-};
-
-struct ScheduleData {
-  bool active;
-  bool dayEnabled[7];  // Sunday=0, ..., Saturday=6
-  ScheduleDay days[7]; // One ScheduleDay per weekday
-  String timezone;
-};
-
-ScheduleData currentSchedule;
 
 // Function to convert JSON variant to ScheduleData struct
 void convertFromJson(JsonVariantConst src, ScheduleData& dst) {
@@ -217,6 +219,8 @@ bool loadMode(bool& scheduleModeEnabled) { // Load the mode from LittleFS
   file.close();
   return true;
 }
+/*
+// the old way to save the schedule data
 
 bool saveSchedule(const ScheduleData& schedule) {
   if (!LittleFS.begin()) {
@@ -240,6 +244,51 @@ bool saveSchedule(const ScheduleData& schedule) {
   for (int i = 0; i < schedule.daysCount; i++) {
     if (schedule.days[i].length() > 0) { // Only save non-empty days
       daysArray.add(schedule.days[i]);
+    }
+  }
+
+  size_t bytesWritten = serializeJson(doc, file);
+  file.close();
+
+  if (bytesWritten == 0) {
+    MyLog(ERROR, "Failed to write schedule");
+    return false;
+  }
+
+  MyLogF(INFO, "Schedule saved (%d bytes)", bytesWritten);
+  return true;
+}
+
+*/
+
+bool saveSchedule(const ScheduleData& schedule) {
+  if (!LittleFS.begin()) {
+    MyLog(ERROR, "Failed to mount LittleFS");
+    return false;
+  }
+
+  File file = LittleFS.open(SCHEDULE_FILE, "w");
+  if (!file) {
+    MyLog(ERROR, "Failed to open schedule file for writing");
+    return false;
+  }
+
+  DynamicJsonDocument doc(2048); // Increased size for more data
+  doc["active"] = schedule.active;
+  doc["timezone"] = schedule.timezone;
+
+  JsonArray daysArray = doc.createNestedArray("weekdays");
+  for (int day = 0; day < 7; ++day) {
+    if (schedule.dayEnabled[day]) {
+      JsonObject dayObj = daysArray.createNestedObject();
+      dayObj["day"] = day;
+
+      JsonArray periodsArray = dayObj.createNestedArray("periods");
+      for (const TimePeriod& period : schedule.days[day].periods) {
+        JsonObject periodObj = periodsArray.createNestedObject();
+        periodObj["start_time"] = period.startTime;
+        periodObj["end_time"] = period.endTime;
+      }
     }
   }
 
@@ -315,18 +364,33 @@ bool connectToNetwork() {
    if(!network.InitEthernetModule(W5500_CS)) {
       // we chech 3 times if the ethernet module is initialized 
       MyLog(INFO, "Failed to initialize Ethernet module");
-       MyLog(INFO, "Falling back to WiFi");
+      MyLog(INFO, "Falling back to WiFi");
 //        network.configureWiFi(ssid, password);
+        IPAddress ip SERVER_IP;
+        network.setServerIp(ip);
+        network.setSercerPort(SERVER_PORT);
         network.configureWiFi(ssid, passwd);
 
         network.InitWifiModule();
+        network.configureOTA(true);
+
+        bool st = network.OTA();
+        if (st)
+        {
+            MyLog(INFO, "RESTATRING OTA ");
+            ESP.restart();
+        }
+        else
+        {
+            MyLog(INFO, " OTA Failed miserably ");
+        }
         useEthernet = false;
-        return false;
-   } else {
-      MyLog(INFO, "Ethernet module initialized successfully");
-        useEthernet = true;
         return true;
-   }
+  } else {
+    MyLog(INFO, "Ethernet module initialized successfully");
+    useEthernet = true;
+    return true;
+  }
 /*
 // ayoub logic 
     static WiFiConfig wifiConfig;
@@ -404,7 +468,6 @@ bool connectToNetwork() {
 */
 }
 
-
 bool saveCurrentVersion(const String& version) {
   File file = LittleFS.open("/version.json", "w");
   if (!file) {
@@ -453,13 +516,14 @@ bool is_newer_version(const String& current, const String& available) {
 
     sscanf(current.c_str(), "%d.%d.%d", &c_major, &c_minor, &c_patch);
     sscanf(available.c_str(), "%d.%d.%d", &a_major, &a_minor, &a_patch);
-
+    // Compare major, minor, and patch versions                     
     if (a_major > c_major) return true;
-    if (a_major == c_major && a_minor > c_minor) return true;
-    if (a_major == c_major && a_minor == c_minor && a_patch > c_patch) return true;
+    else if (a_major == c_major && a_minor > c_minor) return true;
+    else if (a_major == c_major && a_minor == c_minor && a_patch > c_patch) return true;
 
     return false;
 }
+
 bool performOTAUpdate(String firmwareUrl) {
   MyLog(INFO, "Starting OTA update...");
   rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
@@ -613,7 +677,9 @@ bool pingServer() {
                     }
                 }
             }
-            
+            /*
+            //  we don't need this on the loop 
+            // i test moktar code worked very well, we can use it later
             String latestVersion = data["latest_firmware_version"].as<String>();
             String currentVersion = loadCurrentVersion();
 
@@ -624,6 +690,8 @@ bool pingServer() {
                     ESP.restart();
                 }
             }
+            */
+            
 
             return true;
         }
@@ -633,6 +701,309 @@ bool pingServer() {
     http.end();
     return false;
 }
+
+//by aziz 
+ //#define RTC_DS1307 // Uncomment this line if using DS1307 RTC
+//String getCurrentDay() {
+int getCurrentDay() {
+
+    RtcDateTime rtcTime = rtc.RTC_getDateTime();
+    
+    // For DS1307, we need to read day of week directly from register
+    uint8_t dayOfWeek;
+    
+    #ifdef RTC_DS1307
+    Wire.beginTransmission(0x68);
+    Wire.write(0x03); // Day of week register
+    Wire.endTransmission();
+    Wire.requestFrom(0x68, 1);
+    if (Wire.available()) {
+        dayOfWeek = Wire.read();
+    } else {
+        dayOfWeek = 0;
+    }
+    // DS1307 uses 1=Sunday through 7=Saturday
+    dayOfWeek = (dayOfWeek - 1) % 7;
+    #else
+    // For other RTC chips that include day in DateTime
+    dayOfWeek = rtcTime.DayOfWeek();
+    #endif
+
+    // Validate day
+    if (dayOfWeek > 6) {
+        // Calculate from date if invalid
+        int d = rtcTime.Day();
+        int m = rtcTime.Month();
+        int y = rtcTime.Year();
+        
+        if (m < 3) {
+            m += 12;
+            y--;
+        }
+        
+        dayOfWeek = (d + (13 * (m + 1) / 5) + y + (y / 4) - (y / 100) + (y / 400)) % 7;
+    }
+
+    //const char* days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    //return days[dayOfWeek % 7];
+    return (dayOfWeek % 7);
+
+}
+
+bool checkSchedule(const ScheduleData& schedule) {
+    if (!schedule.active) {
+        return false;
+    }
+
+    RtcDateTime now = rtc.RTC_getDateTime();
+    //int currentWeekDay = rtc.RTC_getWeekDay(); // 0 = Sunday, 6 = Saturday
+    int currentWeekDay = getCurrentDay();
+    
+    if (!schedule.dayEnabled[currentWeekDay]) {
+        return false; // No active periods for today
+    }
+
+    int currentMins = now.Hour() * 60 + now.Minute();
+
+    const std::vector<TimePeriod>& periods = schedule.days[currentWeekDay].periods;
+
+    for (const TimePeriod& period : periods) {
+        int startH, startM, endH, endM;
+
+        if (sscanf(period.startTime.c_str(), "%d:%d", &startH, &startM) != 2 ||
+            sscanf(period.endTime.c_str(), "%d:%d", &endH, &endM) != 2) {
+            MyLog(ERROR, "Invalid time format in schedule");
+            continue;
+        }
+
+        int startMins = startH * 60 + startM;
+        int endMins = endH * 60 + endM;
+
+        // Handle overnight schedules (e.g., 22:00 - 06:00)
+        if (endMins < startMins) {
+            if (currentMins >= startMins || currentMins <= endMins) {
+                return true;
+            }
+        } else {
+            if (currentMins >= startMins && currentMins <= endMins) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+TVState updateDesiredState() {
+   // if (currentMode) {
+        // Schedule mode - determine state based on current schedule
+     //  desiredTVState = checkSchedule(currentSchedule) ? TV_ON : TV_OFF;
+   // }
+   return checkSchedule(currentSchedule) ? TV_ON : TV_OFF;
+    // In server command mode, desired state is set during syncWithServer()
+}
+bool savePersistentData() {
+    if (!LittleFS.begin()) {
+        MyLog(ERROR, "Failed to mount LittleFS");
+        return false;
+    }
+
+    File file = LittleFS.open("/persistent.json", "w");
+    if (!file) {
+        MyLog(ERROR, "Failed to open persistent data file");
+        return false;
+    }
+
+    DynamicJsonDocument doc(2048); // Increased to fit new structure
+
+    // Save mode
+    doc["mode"]["use_schedule"] = persistentData.scheduleModeEnabled;
+
+    // Save schedule
+    doc["schedule"]["active"] = persistentData.schedule.active;
+    doc["schedule"]["timezone"] = persistentData.schedule.timezone;
+
+    JsonArray weekdaysArray = doc["schedule"].createNestedArray("weekdays");
+
+    for (int day = 0; day < 7; ++day) {
+        if (!persistentData.schedule.dayEnabled[day]) continue;
+
+        JsonObject dayObj = weekdaysArray.createNestedObject();
+        dayObj["day"] = day;
+
+        JsonArray periodsArray = dayObj.createNestedArray("periods");
+        for (const TimePeriod& period : persistentData.schedule.days[day].periods) {
+            JsonObject periodObj = periodsArray.createNestedObject();
+            periodObj["start_time"] = period.startTime;
+            periodObj["end_time"] = period.endTime;
+        }
+    }
+
+    // Save last state and timestamp
+    doc["last_command"] = (int)persistentData.lastCommandedState;
+    doc["last_update"] = persistentData.lastUpdate;
+
+    size_t bytesWritten = serializeJson(doc, file);
+    file.close();
+
+    if (bytesWritten == 0) {
+        MyLog(ERROR, "Failed to write persistent data");
+        return false;
+    }
+
+    MyLogF(INFO, "Persistent data saved successfully (%d bytes)", bytesWritten);
+    return true;
+}
+
+
+void syncWithServer() {
+    static unsigned long lastSuccessfulSync = 0;
+    static unsigned long lastSyncTime = 0;
+    static unsigned long lastScheduleUpdate = 0;
+
+    const unsigned long SYNC_VALID_DURATION = 86400000; // 24 hours
+    const unsigned long SYNC_INTERVAL = 60000; // 1 minute
+
+    bool isOnline = connectToNetwork();
+
+    // 1. Handle offline mode with valid cached data
+   // if (!isOnline && millis() - persistentData.lastUpdate < SYNC_VALID_DURATION) {
+    if (!isOnline) {
+        MyLog(INFO, "Offline - using cached data");
+        //currentMode = persistentData.scheduleModeEnabled;
+        //currentSchedule = persistentData.schedule;
+
+        //desiredTVState = currentMode ? updateDesiredState() : persistentData.lastCommandedState;
+        //return;
+    }
+
+   // if (!isOnline) {
+     //   MyLog(INFO, "Offline and no recent data - skipping sync");
+       // return;
+    //}
+
+    // 2. Perform ping and handle all data via pingServer
+    //if (millis() - lastSyncTime > SYNC_INTERVAL || lastSyncTime == 0) {
+    else {
+        MyLog(INFO, "Performing scheduled sync...");
+        
+        if (pingServer()) {
+            MyLog(INFO, "Ping successful, processing server response ...");
+
+            persistentData.scheduleModeEnabled = currentMode;
+            persistentData.schedule = currentSchedule;
+            persistentData.lastCommandedState = desiredTVState;
+            persistentData.lastUpdate = millis();
+            savePersistentData();
+            //updateDesiredState(); // Update based on latest schedule if needed
+            lastSuccessfulSync = millis();
+        } else {
+            MyLog(ERROR, "Ping failed - keeping previous state");
+        }
+
+        lastSyncTime = millis();
+    }
+    currentMode = persistentData.scheduleModeEnabled;
+    currentSchedule = persistentData.schedule;
+
+    desiredTVState = currentMode ? updateDesiredState() : persistentData.lastCommandedState;
+      
+}
+uint8_t checkTVStatus() {
+    static uint8_t lastStableState = 0;
+    static uint8_t stableCount = 0;
+    static unsigned long lastReadTime = 0;
+    const uint8_t requiredStableReadings = 5;
+    const unsigned long READ_INTERVAL = 150; // ms
+    static uint8_t lastReadState = 0;
+
+    // Check if it's time for a new reading
+    if (millis() - lastReadTime >= READ_INTERVAL) {
+        lastReadTime = millis();
+
+        uint8_t currentState = digitalRead(TV_STATUS_PIN);
+
+        if (currentState == lastReadState) {
+            stableCount++;
+        } else {
+            stableCount = 0;
+            lastReadState = currentState;
+        }
+
+        if (stableCount >= requiredStableReadings) {
+            lastStableState = lastReadState;
+        }
+    }
+
+    // Return known stable value if confirmed, or 2 if not yet stable
+    return (stableCount >= requiredStableReadings) ? lastReadState : 2;// 0 =  UNKNOWN, 2 = ON 
+}
+
+void manageTVState() {
+//#if ENABLE_IR
+    static unsigned long lastActionTime = 0;
+    const unsigned long ACTION_COOLDOWN = 20000;
+
+    // Skip if still in cooldown
+    if (millis() - lastActionTime < ACTION_COOLDOWN) return;
+
+    // Read current hardware state
+    uint8_t hw = checkTVStatus();
+    TVState actualState = (hw == 1) ? TV_OFF : TV_ON;
+   // tvState = (actualState == TV_ON) ? "ON" : "OFF";
+
+    // Keep global currentTVState updated
+    if (currentTVState != TV_TRANSITIONING) {
+        currentTVState = actualState;
+    }
+
+    // No change needed
+    if (currentTVState == desiredTVState) return;
+
+    MyLogF(INFO, "TV State Mismatch → Current: %s, Desired: %s, Mode: %s",
+        currentTVState == TV_ON ? "ON" : "OFF",
+        desiredTVState == TV_ON ? "ON" : "OFF",
+        currentMode ? "schedule" : "manual");
+
+    // Start state transition
+
+    lastActionTime = millis();
+
+static unsigned long lastIRSendTime = 0;
+const unsigned long IR_SEND_COOLDOWN = 2000; // 2s
+
+// Only send if enough time passed
+if (millis() - lastIRSendTime >= IR_SEND_COOLDOWN) {
+    currentTVState = TV_TRANSITIONING;
+    lastIRSendTime = millis();
+
+    irHandler.sendIR();
+    MyLog(INFO, "IR command sent");
+
+} else {
+    MyLog(INFO, "IR send blocked by 2s cooldown");
+}
+
+
+    // Re-check TV state
+    hw = checkTVStatus();
+    TVState newState = (hw == 1) ? TV_OFF : TV_ON;
+
+    if (newState == desiredTVState) {
+        currentTVState = newState;
+        MyLog(INFO, "TV state successfully changed");
+        /*
+        if (connectToNetwork()) {
+            reportTVStateToServer();
+        }*/
+
+    } else {
+        MyLog(ERROR, "TV state change failed. Reverting to last known");
+        currentTVState = actualState;
+    }
+//#endif
+}
+
 
 //============================================================================
 void setup()
@@ -652,10 +1023,10 @@ void setup()
 
    // by aziz
   // Serial.println("============ Time Debug ============");
-        MyLog(INFO, "============ Time Debug ============");
+    MyLog(INFO, "============ Time Debug ============");
    
    //  Serial.print("RTC Current Time: ");
-        MyLog(INFO, "RTC Current Time: ");
+    MyLog(INFO, "RTC Current Time: ");
 
    nowTime = rtc.RTC_getDateTime();
    Serial.println(rtc.rtcDateTimeToString(nowTime));
@@ -801,7 +1172,7 @@ void loop()
          // tvOff == 1
       } ;
       MyLog(INFO, "Finished Sending IR data ");
-   rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
+      rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
 
       //btime = millis();
 
@@ -829,6 +1200,9 @@ void loop()
    nowTime = rtc.RTC_getDateTime();
    Serial.println(rtc.rtcDateTimeToString(nowTime));
    if(millis() - lastPing > 30000){
+    syncWithServer();
+    manageTVState();
+    /*
       if (connectToNetwork()){
          MyLog(INFO, "Connected to network, pinging server ...");
          if (pingServer()) {
@@ -839,7 +1213,7 @@ void loop()
          }
       } else {
          MyLog(ERROR, "Failed to connect to network");
-      }
+      }*/
    }
 
    }

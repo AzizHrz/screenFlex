@@ -119,6 +119,7 @@ void loop()
     // performPost();
     // delay(3000);
     delay(2000);
+    Serial.println("Y");
 }
 void file_update(const char *filePath)
 {
