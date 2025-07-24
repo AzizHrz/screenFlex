@@ -79,9 +79,9 @@ const int serverPort = SERVER_PORT;
 
 // TV State Enumeration - Add this before PersistentData struct
 enum TVState {
-  TV_ON,       // 0  ON state
-  TV_OFF,          // 1 Confirmed OFF state
-  TV_UNKNOWN,          // 2 Confirmed Initial/unknown state
+  TV_OFF,          // 0 Confirmed OFF state  
+  TV_ON,           // 1  ON state
+  TV_UNKNOWN,      // 2 Confirmed Initial/unknown state
   TV_TRANSITIONING // 3 Currently changing state
 };
 // Global State Variables
@@ -877,6 +877,19 @@ if (millis() - lastIRSendTime >= IR_SEND_COOLDOWN) {
     }
 //#endif
 }
+
+//by aziz ==================================================
+// Function to CHANGE TV state based on the current mode
+void changeTVState(){
+    MyLog(DEBUG, "Sending IR command: current state incompatible with desired ...");
+      while (!(irHandler.getTVStatus(1000) == TV_ON /*we use pullup*/))
+      {
+        MyLog(DEBUG, ".");
+         irHandler.sendIR();
+         // tvOff == 1
+      } ;
+
+}
 // MQTT ============================================================
 
 void setup_wifi() {
@@ -913,7 +926,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   const char* mode = doc["mode"];
   Serial.print("Mode: ");
   Serial.println(mode);
-  updateDesiredTVState(mode);
+  desiredTVState = updateDesiredTVState(mode);
 
   JsonArray days = doc["schedule"]["days"];
   for (int i = 0; i < days.size(); i++) {
@@ -1014,7 +1027,7 @@ void setup()
       irHandler.setRecievedData(data);
       rgb.setBlinkingStatus(BRIGHT_ORANGE_COLOR_STATUS);
       /*MyLog(DEBUG, "Sending IR signal if tv off ...");
-      while (!(irHandler.getTVStatus(1000) == 1 /*we use pullup*//*))
+      while (!(irHandler.getTVStatus(1000) == TV_ON /*we use pullup*//*))
       {
       MyLog(DEBUG, ".");
          irHandler.sendIR();
@@ -1061,7 +1074,7 @@ void loop()
       irHandler.receiveIR(true);
       rgb.setBlinkingStatus(BRIGHT_ORANGE_COLOR_STATUS);
       MyLog(DEBUG, "Sending IR signal if tv off ...");
-      while (!(irHandler.getTVStatus(1000) == 1 /*we use pullup*/))
+      while (!(irHandler.getTVStatus(1000) == TV_ON /*we use pullup*/))
       {  
         MyLog(DEBUG, ".");
 
@@ -1072,9 +1085,49 @@ void loop()
       rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
       
     }else {
+        static unsigned long lastReadTime = 0;
+        const uint16_t READ_INTERVAL = 1000; // ms
+        
        // MyLog(INFO, "MQTT Client Loop ...");
          if (!client.connected()) reconnect();
          client.loop();
+
+
+         if (millis() - lastReadTime >= READ_INTERVAL) {
+         lastReadTime = millis();
+
+            switch (irHandler.getTVStatus(1000))
+            {
+            case 0: // TV_OFF
+            currentTVState = TV_OFF;
+            MyLog(INFO, "TV is currently OFF");
+            if(desiredTVState != currentTVState) {
+              MyLog(INFO, "currentTVSTtae differs for desired state");
+              changeTVState();
+              }
+            break;
+            case 1: // TV_ON
+            currentTVState = TV_ON;
+            MyLog(INFO, "TV is currently ON");
+            if(desiredTVState != currentTVState) {
+              MyLog(INFO, "currentTVSTtae differs for desired state");
+              changeTVState();
+              }
+            break;
+            case 2: // TV_TRANSITIONING
+                currentTVState = TV_TRANSITIONING;
+                MyLog(INFO, "TV is currently transitioning state");
+                break;    
+            case 3: // TV_UNKNOWN
+                currentTVState = TV_UNKNOWN;
+                MyLog(INFO, "Current TV State is UNKNOWN");
+                break;
+            default:
+                MyLog(ERROR, "Unknown TV state read from hardware");
+                break;
+            }       
+        }
+         
 
   // Send TV state every second
   static unsigned long lastMsg = 0;

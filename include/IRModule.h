@@ -89,7 +89,12 @@ void IRHandler::setRecievedData(MyIRData& irData){
     
 }
 uint8_t IRHandler::getTVStatus(uint16_t checkDuration) {
-    // Disable IR receiver to prevent interference
+    /*  TV_OFF,          // 0 Confirmed OFF state  
+  TV_ON,           // 1  ON state
+  TV_UNKNOWN,      // 2 Confirmed Initial/unknown state
+  TV_TRANSITIONING // 3 Currently changing state
+   */
+      // Disable IR receiver to prevent interference
     IrReceiver.stop();
     
     // Configure pin properly (in case other code modified it)
@@ -125,7 +130,7 @@ uint8_t IRHandler::getTVStatus(uint16_t checkDuration) {
     }
     // Only return 3 if the loop ends without detecting a stable state
     if (consistentReadings < requiredSamples) {
-    return 3;
+    return 2;// 2 unknown state
     }
     
     // Re-enable IR receiver
