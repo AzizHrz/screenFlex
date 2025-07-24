@@ -20,7 +20,7 @@
 
 #include <HTTPUpdate.h> // Include the ESP32 HTTP Update library
 
-// MQTT updates
+// MQTT updates =======================================================
 #include <PubSubClient.h>
 #include <ArduinoJson.h> 
 const char* mqtt_server = "broker.hivemq.com";
@@ -28,6 +28,12 @@ const char* deviceId = "esp32-01";  // 🔹 DEVICE ID
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+// MQTT topics with device ID
+String orderTopic = "screenflex/" + String(deviceId) + "/order";
+String stateTopic = "screenflex/" + String(deviceId) + "/state";
+
+//========================================================
 
 //IRHandler irHandler(IR_RECEIVE_PIN, IR_SEND_PIN_, TV_STATUS_PIN);
 IRHandler irHandler(IR_RECEIVE_PIN, 32, TV_STATUS_PIN);
@@ -391,10 +397,10 @@ bool performOTAUpdate(String firmwareUrl) {
   MyLog(INFO, "Starting OTA update...");
   rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
   
-  WiFiClient wifi;
+  WiFiClient espClient;
   
   // Configure update callbacks
-  HTTPUpdateResult ret = httpUpdate.update(wifi, firmwareUrl);
+  HTTPUpdateResult ret = httpUpdate.update(espClient, firmwareUrl);
   
   bool success = false;
 
@@ -429,7 +435,7 @@ bool checkForUpdates() {
   if (useEthernet) {
     http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/firmware");
   } else {
-    http.begin(wifi, url);
+    http.begin(espClient, url);
   }
 
   int httpCode = http.GET();
@@ -476,7 +482,7 @@ bool pingServer() {
     if (useEthernet) {
         http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/ping");
     } else {
-        http.begin(wifi, url);
+        http.begin(espClient, url);
     }
 
     http.addHeader("Content-Type", "application/json");
@@ -863,6 +869,71 @@ if (millis() - lastIRSendTime >= IR_SEND_COOLDOWN) {
     }
 //#endif
 }
+// MQTT ============================================================
+
+void setup_wifi() {
+    MyLog(INFO, "Connecting to WiFi...");
+  WiFi.begin(ssid, passwd);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }  
+    MyLog(INFO, "Connected to WiFi");
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message received [");
+  Serial.print(topic);
+  Serial.println("]:");
+
+  String jsonStr;
+  for (int i = 0; i < length; i++) {
+    jsonStr += (char)payload[i];
+  }
+
+  Serial.println(jsonStr);
+
+  StaticJsonDocument<1024> doc;
+  DeserializationError error = deserializeJson(doc, jsonStr);
+
+  if (error) {
+    Serial.print("deserializeJson() failed: ");
+    Serial.println(error.c_str());
+    return;
+  }
+
+  const char* mode = doc["mode"];
+  Serial.print("Mode: ");
+  Serial.println(mode);
+
+  JsonArray days = doc["schedule"]["days"];
+  for (int i = 0; i < days.size(); i++) {
+    JsonObject day = days[i];
+    bool enabled = day["enabled"];
+    Serial.printf("Day %d - Enabled: %s\n", i, enabled ? "true" : "false");
+    JsonArray slots = day["slots"];
+     if (slots.isNull() || slots.size() == 0) {
+    Serial.println("  No slots for this day");
+    } else {
+    for (JsonObject slot : slots) {
+      const char* start = slot["start_time"];
+      const char* end   = slot["end_time"];
+      Serial.printf("  Slot: %s -> %s\n", start, end);
+    }
+}
+  }
+}
+
+
+
+void reconnect() {
+  while (!client.connected()) {
+    client.connect("esp32-client");
+  }
+  client.subscribe(orderTopic.c_str());  // Subscribe to new topic
+}
+
+
 //============================================================================
 void setup()
 {
@@ -904,13 +975,18 @@ void setup()
 
    // initize internet Module
     MyLog(INFO, "Initializing Network Module ...");
-    Network.configureWiFi(ssid, passwd);
-    Network.InitWifiModule();
+   // Network.configureWiFi(ssid, passwd);
+    //Network.InitWifiModule();
 
    
+   // mqtt setup =================================================
+   setup_wifi();
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+
    MyLog(INFO, "Finished Initializing all the Modules  ...");
    MyLog(INFO, "Starting Now ...");
-   MyLog(DEBUG, "STARTING IR  ...");
+  // MyLog(DEBUG, "STARTING IR  ...");
    
    bool state = irHandler.IsIRDataavailable(f);
 
@@ -960,7 +1036,6 @@ void setup()
     MyLog(INFO, "Finished Sending IR data");
    rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
 
-   
 
    
 }
@@ -988,6 +1063,23 @@ void loop()
       rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
       
     }else {
-        MyLog(INFO, "just looping ...");
+       // MyLog(INFO, "MQTT Client Loop ...");
+         if (!client.connected()) reconnect();
+  client.loop();
+
+  // Send TV state every second
+  static unsigned long lastMsg = 0;
+  if (millis() - lastMsg > 1000) {
+    lastMsg = millis();
+
+    StaticJsonDocument<128> doc;
+    doc["millis"] = millis();
+    doc["currentTVState"] = currentTVState;
+    doc["desiredTVState"] = desiredTVState;
+
+    char msg[128];
+    size_t len = serializeJson(doc, msg);
+    client.publish(stateTopic.c_str(), msg, len);
+  }
     }
 }
