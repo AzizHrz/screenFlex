@@ -716,13 +716,21 @@ bool checkSchedule(const ScheduleData& schedule) {
     return false;
 }
 
-TVState updateDesiredState() {
-   // if (currentMode) {
-        // Schedule mode - determine state based on current schedule
-     //  desiredTVState = checkSchedule(currentSchedule) ? TV_ON : TV_OFF;
-   // }
-   return checkSchedule(currentSchedule) ? TV_ON : TV_OFF;
-    // In server command mode, desired state is set during syncWithServer()
+TVState updateDesiredTVState(const char* mode) {
+   if (mode == "on"){
+        MyLog(INFO, "TV ON command received");
+        return TV_ON;
+    }else if (mode == "off") {
+        MyLog(INFO, "TV Off command received");
+        return TV_OFF;
+    }else if(mode == "schedule") {
+        MyLog(INFO, "TV Schedule command received");
+        return checkSchedule(currentSchedule) ? TV_ON : TV_OFF;
+    }
+    else {
+        MyLogF(ERROR, "Unknown mode: %s", mode);
+        return TV_UNKNOWN; // Handle unknown mode
+    }
 }
 
 bool savePersistentData() {
@@ -905,6 +913,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   const char* mode = doc["mode"];
   Serial.print("Mode: ");
   Serial.println(mode);
+  updateDesiredTVState(mode);
 
   JsonArray days = doc["schedule"]["days"];
   for (int i = 0; i < days.size(); i++) {
@@ -915,12 +924,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
      if (slots.isNull() || slots.size() == 0) {
     Serial.println("  No slots for this day");
     } else {
-    for (JsonObject slot : slots) {
+     for (JsonObject slot : slots) {
       const char* start = slot["start_time"];
       const char* end   = slot["end_time"];
       Serial.printf("  Slot: %s -> %s\n", start, end);
+     }
     }
-}
   }
 }
 
@@ -1065,7 +1074,7 @@ void loop()
     }else {
        // MyLog(INFO, "MQTT Client Loop ...");
          if (!client.connected()) reconnect();
-  client.loop();
+         client.loop();
 
   // Send TV state every second
   static unsigned long lastMsg = 0;
