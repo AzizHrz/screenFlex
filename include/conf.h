@@ -30,7 +30,7 @@ const uint8_t targetMAC[] = {0x00, 0xe0, 0x4c, 0x38, 0xcd, 0xc2};
  * @brief Flag to enable or disable Over-the-Air (OTA) updates.
  * @note 1 to enable, 0 to disable.
  */
-#define ENABLE_OTA 1
+#define ENABLE_OTA 0
 
 /** 
  * @def DISABLE_ETHERNET

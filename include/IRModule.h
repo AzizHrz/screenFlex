@@ -104,7 +104,12 @@ uint8_t IRHandler::getTVStatus(uint16_t checkDuration) {
         uint32_t startSampleTime = millis();
 
         uint8_t currentState = digitalRead(_tvpin);
-        
+         //by aziz
+        //delay(20); // Short delay between samples
+        while (millis() - startSampleTime < 20) {
+            // Wait for 20 ms to avoid flooding the pin reads
+            // This ensures we don't read too quickly and get inconsistent results  
+        }
         if (currentState == lastState) {
             consistentReadings++;
             if (consistentReadings >= requiredSamples) {
@@ -113,17 +118,18 @@ uint8_t IRHandler::getTVStatus(uint16_t checkDuration) {
         } else {
             lastState = currentState;
             consistentReadings = 1;
+           
         }
-        //by aziz
-        //delay(20); // Short delay between samples
-        while (millis() - startSampleTime < 20) {
-            // Wait for 20 ms to avoid flooding the pin reads
-            // This ensures we don't read too quickly and get inconsistent results  
-        }
+        
+       
+    }
+    // Only return 3 if the loop ends without detecting a stable state
+    if (consistentReadings < requiredSamples) {
+    return 3;
     }
     
     // Re-enable IR receiver
-    IrReceiver.start();
+   // IrReceiver.start();
     
     return (lastState == LOW) ? 1 : 0; // LOW = ON (1), HIGH = OFF (0)
 

@@ -20,6 +20,15 @@
 
 #include <HTTPUpdate.h> // Include the ESP32 HTTP Update library
 
+// MQTT updates
+#include <PubSubClient.h>
+#include <ArduinoJson.h> 
+const char* mqtt_server = "broker.hivemq.com";
+const char* deviceId = "esp32-01";  // 🔹 DEVICE ID
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
 //IRHandler irHandler(IR_RECEIVE_PIN, IR_SEND_PIN_, TV_STATUS_PIN);
 IRHandler irHandler(IR_RECEIVE_PIN, 32, TV_STATUS_PIN);
 ButtonModule btn(PIN_BTN);
@@ -46,6 +55,8 @@ bool useEthernet = false;
 // WiFi configuration
 const char* ssid = "Aziz_s_iPhone";
 const char* passwd = "just100$";
+//NetworkStack Network; 
+
 
 struct WiFiConfig {
   String ssid;
@@ -55,7 +66,7 @@ struct WiFiConfig {
 //==============================================================
 
 EthernetClient ethClient;
-WiFiClient client;
+//WiFiClient wifi;
 
 IPAddress serverIp(SERVER_IP); // Change to your Flask server IP 172.20.10.2 //18 ,235, 73, 121
 const int serverPort = SERVER_PORT;
@@ -380,10 +391,10 @@ bool performOTAUpdate(String firmwareUrl) {
   MyLog(INFO, "Starting OTA update...");
   rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
   
-  WiFiClient client;
+  WiFiClient wifi;
   
   // Configure update callbacks
-  HTTPUpdateResult ret = httpUpdate.update(client, firmwareUrl);
+  HTTPUpdateResult ret = httpUpdate.update(wifi, firmwareUrl);
   
   bool success = false;
 
@@ -418,7 +429,7 @@ bool checkForUpdates() {
   if (useEthernet) {
     http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/firmware");
   } else {
-    http.begin(client, url);
+    http.begin(wifi, url);
   }
 
   int httpCode = http.GET();
@@ -452,7 +463,6 @@ bool checkForUpdates() {
   http.end();
   return false;
 }
-#endif
 
 bool pingServer() {
     // Check network connection first
@@ -466,7 +476,7 @@ bool pingServer() {
     if (useEthernet) {
         http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/ping");
     } else {
-        http.begin(client, url);
+        http.begin(wifi, url);
     }
 
     http.addHeader("Content-Type", "application/json");
@@ -551,6 +561,62 @@ bool pingServer() {
     http.end();
     return false;
 }
+
+void syncWithServer() {
+    static unsigned long lastSuccessfulSync = 0;
+    static unsigned long lastSyncTime = 0;
+    static unsigned long lastScheduleUpdate = 0;
+
+    const unsigned long SYNC_VALID_DURATION = 86400000; // 24 hours
+    const unsigned long SYNC_INTERVAL = 60000; // 1 minute
+
+    bool isOnline = connectToNetwork();
+
+    // 1. Handle offline mode with valid cached data
+   // if (!isOnline && millis() - persistentData.lastUpdate < SYNC_VALID_DURATION) {
+    if (!isOnline) {
+        MyLog(INFO, "Offline - using cached data");
+        //currentMode = persistentData.scheduleModeEnabled;
+        //currentSchedule = persistentData.schedule;
+
+        //desiredTVState = currentMode ? updateDesiredState() : persistentData.lastCommandedState;
+        //return;
+    }
+
+   // if (!isOnline) {
+     //   MyLog(INFO, "Offline and no recent data - skipping sync");
+       // return;
+    //}
+
+    // 2. Perform ping and handle all data via pingServer
+    //if (millis() - lastSyncTime > SYNC_INTERVAL || lastSyncTime == 0) {
+    else {
+        MyLog(INFO, "Performing scheduled sync...");
+        
+        if (pingServer()) {
+            MyLog(INFO, "Ping successful, processing server response ...");
+
+            persistentData.scheduleModeEnabled = currentMode;
+            persistentData.schedule = currentSchedule;
+            persistentData.lastCommandedState = desiredTVState;
+            persistentData.lastUpdate = millis();
+            savePersistentData();
+            //updateDesiredState(); // Update based on latest schedule if needed
+            lastSuccessfulSync = millis();
+        } else {
+            MyLog(ERROR, "Ping failed - keeping previous state");
+        }
+
+        lastSyncTime = millis();
+    }
+    currentMode = persistentData.scheduleModeEnabled;
+    currentSchedule = persistentData.schedule;
+
+    desiredTVState = currentMode ? updateDesiredState() : persistentData.lastCommandedState;
+      
+}
+
+#endif
 
 //by aziz 
  //#define RTC_DS1307 // Uncomment this line if using DS1307 RTC
@@ -705,60 +771,6 @@ bool savePersistentData() {
     MyLogF(INFO, "Persistent data saved successfully (%d bytes)", bytesWritten);
     return true;
 }
-
-void syncWithServer() {
-    static unsigned long lastSuccessfulSync = 0;
-    static unsigned long lastSyncTime = 0;
-    static unsigned long lastScheduleUpdate = 0;
-
-    const unsigned long SYNC_VALID_DURATION = 86400000; // 24 hours
-    const unsigned long SYNC_INTERVAL = 60000; // 1 minute
-
-    bool isOnline = connectToNetwork();
-
-    // 1. Handle offline mode with valid cached data
-   // if (!isOnline && millis() - persistentData.lastUpdate < SYNC_VALID_DURATION) {
-    if (!isOnline) {
-        MyLog(INFO, "Offline - using cached data");
-        //currentMode = persistentData.scheduleModeEnabled;
-        //currentSchedule = persistentData.schedule;
-
-        //desiredTVState = currentMode ? updateDesiredState() : persistentData.lastCommandedState;
-        //return;
-    }
-
-   // if (!isOnline) {
-     //   MyLog(INFO, "Offline and no recent data - skipping sync");
-       // return;
-    //}
-
-    // 2. Perform ping and handle all data via pingServer
-    //if (millis() - lastSyncTime > SYNC_INTERVAL || lastSyncTime == 0) {
-    else {
-        MyLog(INFO, "Performing scheduled sync...");
-        
-        if (pingServer()) {
-            MyLog(INFO, "Ping successful, processing server response ...");
-
-            persistentData.scheduleModeEnabled = currentMode;
-            persistentData.schedule = currentSchedule;
-            persistentData.lastCommandedState = desiredTVState;
-            persistentData.lastUpdate = millis();
-            savePersistentData();
-            //updateDesiredState(); // Update based on latest schedule if needed
-            lastSuccessfulSync = millis();
-        } else {
-            MyLog(ERROR, "Ping failed - keeping previous state");
-        }
-
-        lastSyncTime = millis();
-    }
-    currentMode = persistentData.scheduleModeEnabled;
-    currentSchedule = persistentData.schedule;
-
-    desiredTVState = currentMode ? updateDesiredState() : persistentData.lastCommandedState;
-      
-}
 uint8_t checkTVStatus() {
     static uint8_t lastStableState = 0;
     static uint8_t stableCount = 0;
@@ -888,13 +900,21 @@ void setup()
    
   
   rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
-   // initize the ethernet Module
+
+
+   // initize internet Module
+    MyLog(INFO, "Initializing Network Module ...");
+    Network.configureWiFi(ssid, passwd);
+    Network.InitWifiModule();
+
    
    MyLog(INFO, "Finished Initializing all the Modules  ...");
    MyLog(INFO, "Starting Now ...");
    MyLog(DEBUG, "STARTING IR  ...");
    
    bool state = irHandler.IsIRDataavailable(f);
+
+   
    if (state)
    { // isDataAvailable(settings)) {
       rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
@@ -908,15 +928,15 @@ void setup()
       // irHandler.PrintMyIRData(data);
       irHandler.setRecievedData(data);
       rgb.setBlinkingStatus(BRIGHT_ORANGE_COLOR_STATUS);
-      
-      MyLog(DEBUG, "Sending IR signal if tv off ...");
-      while (!(irHandler.getTVStatus(1000) == 1 /*we use pullup*/))
+      /*MyLog(DEBUG, "Sending IR signal if tv off ...");
+      while (!(irHandler.getTVStatus(1000) == 1 /*we use pullup*//*))
       {
       MyLog(DEBUG, ".");
          irHandler.sendIR();
          // tvOff == 1
       } ;
-      // Blinking_status=GR;
+*/
+            // Blinking_status=GR;
    }
    else
    {
@@ -927,43 +947,21 @@ void setup()
 
       irHandler.receiveIR(true);
       rgb.setBlinkingStatus(BRIGHT_ORANGE_COLOR_STATUS);
-      MyLog(DEBUG, "Sending IR signal if tv off ...");
+      /*MyLog(DEBUG, "Sending IR signal if tv off ...");
     
-       while (!(irHandler.getTVStatus(1000) == 1 /*we use pullup*/))
+       while (!(irHandler.getTVStatus(1000) == 1 ))
       {
          MyLog(DEBUG, ".");
      
         irHandler.sendIR();
          // tvOff == 1
       };
-   }
+   */}
     MyLog(INFO, "Finished Sending IR data");
    rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
-//btime = millis();
-   /*// OTA handlin ...
-#if (ENABLE_OTA == 1)
-   IPAddress ip SERVER_IP;
-   network.setServerIp(ip);
-   network.setSercerPort(SERVER_PORT);
-   network.configureWiFi(WIFI_SSID, WIFI_PASSWD);
-   network.InitWifiModule();
-   MyLog(INFO, "Performing OTA ");
-   network.configureOTA(true);
 
-   bool st = network.OTA();
-   if (st)
-   {
-      MyLog(INFO, "RESTATRING OTA ");
-      ESP.restart();
-   }
-   else
-   {
-      MyLog(INFO, " OTA Failed miserably ");
-   }
-#else
-   MyLog(INFO, " OTA is disabled ");
+   
 
-#endif*/
    
 }
 void loop()
@@ -988,71 +986,8 @@ void loop()
       } ;
       MyLog(INFO, "Finished Sending IR data ");
       rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
-      //btime = millis();
-      // OPT restart the ESP
-       //ESP.restart();
-    }else if(millis() - lastStateVerify > 30000 && lastOffTV<=4) { // Every 10 s
-
-      MyLog(DEBUG, "Checking TV state ...");
-   lastOffTV ++;
-
-   Serial.println(lastOffTV);
-
-      lastStateVerify = millis();
-    
-     while (!(irHandler.getTVStatus(1000) == 1 /*we use pullup*/))
-      {
-        rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
-
-        MyLog(DEBUG, "Sending IR signal ON"); 
-        irHandler.sendIR();
-         // tvOff == 1
-      } ;
-     // MyLog(INFO, "Finished Sending IR data");
-   rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
-
-    }else if(millis() /*- lastOffTV*/ > 40000 && lastOffTV ==2) { // Every 10 s
-     // MyLog(DEBUG, "Checking TV state ...");
-     // lastOffTV = millis();
-      lastStateVerify = 0;
-    
-     //while (!(irHandler.getTVStatus(1000) == 0 /*we use pullup*/)) {
-        rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
-
-        MyLog(DEBUG, "Sending IR signal Off"); 
-         lastOffTV ++;
-
-         Serial.println(lastOffTV);
-
-        irHandler.sendIR();
-         // tvOff == 1
-      //} ;
-     // MyLog(INFO, "Finished Sending IR data");
-   rgb.setBlinkingStatus(RED_COLOR_STATUS);
-    }else if(millis() - lastTimeVerify > 60000) { 
-         lastTimeVerify = millis();
-   // by aziz
-   Serial.println("======== Time Comparison Debug ========");
-
-   Serial.print("RTC Current Time: ");
-   nowTime = rtc.RTC_getDateTime();
-   Serial.println(rtc.rtcDateTimeToString(nowTime));
       
-  // if(millis() - lastPing > 30000){
-  //  syncWithServer();
-  //  manageTVState();
-    /*
-      if (connectToNetwork()){
-         MyLog(INFO, "Connected to network, pinging server ...");
-         if (pingServer()) {
-            MyLog(INFO, "Ping successful, processing server response ...");
-            // Process server response here
-         } else {
-            MyLog(ERROR, "Ping failed or no valid response from server");
-         }
-      } else {
-         MyLog(ERROR, "Failed to connect to network");
-      }*/
-  // }
-   }
+    }else {
+        MyLog(INFO, "just looping ...");
+    }
 }
