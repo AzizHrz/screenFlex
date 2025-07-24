@@ -45,7 +45,9 @@
   * The VERSION is compiler flag, Must be updated by the User. 
   * This macro expands to the stringified version of the firmware version number.
   */
- #define FIRMWARE_VERSION  TOSTRING(VERSION)
+ //#define FIRMWARE_VERSION  TOSTRING(VERSION)
+ //#define FIRMWARE_VERSION  TOSTRING(1.1.2) //for firmware1.1.2
+ #define FIRMWARE_VERSION  TOSTRING(1.1.1) //for testOTA.cpp
  
  /**
   * @brief Displays the firmware version during compilation.

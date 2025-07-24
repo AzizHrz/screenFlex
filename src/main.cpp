@@ -1,6 +1,8 @@
 // /*
-//  * Software Verision 1.2.1 , Moktar SELLAMI
+//  * Software Verision 1.3.1 , HARZALLAH Aziz
+//  *16/07/2025
 //  * @screen_flex
+//  *fore more information go to durtymain.txt
 //  */
 
 #include "conf.h"
@@ -18,8 +20,6 @@
 
 #include <HTTPUpdate.h> // Include the ESP32 HTTP Update library
 
-
-
 //IRHandler irHandler(IR_RECEIVE_PIN, IR_SEND_PIN_, TV_STATUS_PIN);
 IRHandler irHandler(IR_RECEIVE_PIN, 32, TV_STATUS_PIN);
 ButtonModule btn(PIN_BTN);
@@ -34,6 +34,8 @@ volatile bool Wake_PC_STATE_finished = false;
 unsigned long btime = 0;
 
 static unsigned long lastStateVerify = 0;
+static unsigned long lastTimeVerify = 0;
+static unsigned long lastOffTV = 0;
 static unsigned long lastPing = 0;
 
 
@@ -110,38 +112,6 @@ PersistentData persistentData;
 //#define VERSION_FILE "/version.json"
 
 String DEVICE_ID = "SOLUTIONGENERIQUE1";
-/*
-// the old way to store the schedule data
-struct ScheduleData {
-  bool active;
-  //bool dayEnabled[7]; // true for each day of the week
-  String days[7];
-  int daysCount;
-  String startTime;
-  String endTime;
-  String timezone;
-};
-ScheduleData currentSchedule;
-
-void convertFromJson(JsonVariantConst src, ScheduleData& dst) { // Convert JSON variant to ScheduleData struct
-   // to avoid this error
-   // "lib/ArduinoJson/src/ArduinoJson/Variant/ConverterImpl.hpp:24:20: error: no matching function
-   // for call to 'convertFromJson(ArduinoJson6201_F1::JsonVariantConst&, ScheduleData&)'
-   //  convertFromJson(src, result);  // Error here? See https://arduinojson.org/v6/unsupported-as/"
-    dst.active = src["active"] | dst.active;
-    dst.timezone = src["timezone"] | dst.timezone;
-    dst.startTime = src["start_time"] | dst.startTime;
-    dst.endTime = src["end_time"] | dst.endTime;
-
-    dst.daysCount = 0;
-    JsonArrayConst daysArray = src["weekdays"];
-    for (JsonVariantConst day : daysArray) {
-        if (dst.daysCount < 7) {
-            dst.days[dst.daysCount++] = day.as<String>();
-        }
-    }
-}
-*/
 
 // Function to convert JSON variant to ScheduleData struct
 void convertFromJson(JsonVariantConst src, ScheduleData& dst) {
@@ -171,7 +141,6 @@ void convertFromJson(JsonVariantConst src, ScheduleData& dst) {
     }
   }
 }
-
 
 bool saveMode(const bool& scheduleModeEnabled) {
   if (!LittleFS.begin()) {
@@ -219,47 +188,6 @@ bool loadMode(bool& scheduleModeEnabled) { // Load the mode from LittleFS
   file.close();
   return true;
 }
-/*
-// the old way to save the schedule data
-
-bool saveSchedule(const ScheduleData& schedule) {
-  if (!LittleFS.begin()) {
-    MyLog(ERROR, "Failed to mount LittleFS");
-    return false;
-  }
-
-  File file = LittleFS.open(SCHEDULE_FILE, "w");
-  if (!file) {
-    MyLog(ERROR, "Failed to open schedule file for writing");
-    return false;
-  }
-
-  DynamicJsonDocument doc(1024);
-  doc["active"] = schedule.active;
-  doc["timezone"] = schedule.timezone;
-  doc["start_time"] = schedule.startTime;
-  doc["end_time"] = schedule.endTime;
-
-  JsonArray daysArray = doc.createNestedArray("weekdays");
-  for (int i = 0; i < schedule.daysCount; i++) {
-    if (schedule.days[i].length() > 0) { // Only save non-empty days
-      daysArray.add(schedule.days[i]);
-    }
-  }
-
-  size_t bytesWritten = serializeJson(doc, file);
-  file.close();
-
-  if (bytesWritten == 0) {
-    MyLog(ERROR, "Failed to write schedule");
-    return false;
-  }
-
-  MyLogF(INFO, "Schedule saved (%d bytes)", bytesWritten);
-  return true;
-}
-
-*/
 
 bool saveSchedule(const ScheduleData& schedule) {
   if (!LittleFS.begin()) {
@@ -303,7 +231,6 @@ bool saveSchedule(const ScheduleData& schedule) {
   MyLogF(INFO, "Schedule saved (%d bytes)", bytesWritten);
   return true;
 }
-
 
 bool saveWiFiConfig(const WiFiConfig& config) {
   if (!LittleFS.begin()) {
@@ -391,81 +318,6 @@ bool connectToNetwork() {
     useEthernet = true;
     return true;
   }
-/*
-// ayoub logic 
-    static WiFiConfig wifiConfig;
-    static bool configLoaded = false;
-    static unsigned long lastNetworkSwitch = 0;
-    const unsigned long MIN_SWITCH_INTERVAL = 30000; // 30 seconds
-    
-    // Load WiFi config if not already loaded
-    if (!configLoaded) {
-        if (loadWiFiConfig(wifiConfig)) {
-            MyLog(INFO, "Loaded WiFi config from storage");
-        } else {
-            // Fallback to compiled credentials
-            wifiConfig.ssid = ssid;
-            wifiConfig.password = password;
-            MyLog(INFO, "Using compiled WiFi credentials");
-        }
-        configLoaded = true;
-    }
-
-    // Don't switch too frequently
-    if (millis() - lastNetworkSwitch < MIN_SWITCH_INTERVAL && lastNetworkSwitch != 0) {
-        return useEthernet ? Ethernet.linkStatus() == LinkON : WiFi.status() == WL_CONNECTED;
-    }
-    
-    // Try Ethernet first if not already using it
-    if (!useEthernet) {
-        if (initEthernet()) {
-            useEthernet = true;
-            lastNetworkSwitch = millis();
-            return true;
-        }
-    }
-    
-    // Check current connection status
-    if (useEthernet) {
-        if (Ethernet.linkStatus() == LinkOFF) {
-            MyLog(INFO, "Ethernet disconnected, switching to WiFi");
-            useEthernet = false;
-            
-            // Try saved WiFi first
-            network.configureWiFi(wifiConfig.ssid.c_str(), wifiConfig.password.c_str());
-            network.InitWifiModule();
-            
-            // Check if connection succeeded
-            if (WiFi.status() != WL_CONNECTED) {
-                // If saved WiFi fails, try hardcoded credentials
-                MyLog(WARNING, "Saved WiFi failed, trying hardcoded credentials");
-                network.configureWiFi(ssid, password);
-                network.InitWifiModule();
-            }
-            
-            lastNetworkSwitch = millis();
-            return WiFi.status() == WL_CONNECTED;
-        }
-        return true;
-    } else {
-        if (WiFi.status() != WL_CONNECTED) {
-            // Try saved WiFi first
-            network.configureWiFi(wifiConfig.ssid.c_str(), wifiConfig.password.c_str());
-            network.InitWifiModule();
-            
-            // Check if connection succeeded
-            if (WiFi.status() != WL_CONNECTED) {
-                // If saved WiFi fails, try hardcoded credentials
-                MyLog(WARNING, "Saved WiFi failed, trying hardcoded credentials");
-                network.configureWiFi(ssid, password);
-                network.InitWifiModule();
-            }
-            lastNetworkSwitch = millis();
-        }
-        return WiFi.status() == WL_CONNECTED;
-    }
-
-*/
 }
 
 bool saveCurrentVersion(const String& version) {
@@ -691,8 +543,6 @@ bool pingServer() {
                 }
             }
             */
-            
-
             return true;
         }
     } else {
@@ -802,6 +652,7 @@ TVState updateDesiredState() {
    return checkSchedule(currentSchedule) ? TV_ON : TV_OFF;
     // In server command mode, desired state is set during syncWithServer()
 }
+
 bool savePersistentData() {
     if (!LittleFS.begin()) {
         MyLog(ERROR, "Failed to mount LittleFS");
@@ -854,7 +705,6 @@ bool savePersistentData() {
     MyLogF(INFO, "Persistent data saved successfully (%d bytes)", bytesWritten);
     return true;
 }
-
 
 void syncWithServer() {
     static unsigned long lastSuccessfulSync = 0;
@@ -983,8 +833,6 @@ if (millis() - lastIRSendTime >= IR_SEND_COOLDOWN) {
 } else {
     MyLog(INFO, "IR send blocked by 2s cooldown");
 }
-
-
     // Re-check TV state
     hw = checkTVStatus();
     TVState newState = (hw == 1) ? TV_OFF : TV_ON;
@@ -1003,8 +851,6 @@ if (millis() - lastIRSendTime >= IR_SEND_COOLDOWN) {
     }
 //#endif
 }
-
-
 //============================================================================
 void setup()
 {
@@ -1017,71 +863,44 @@ void setup()
    if (!rtc.begin()) {
         //Serial.println("Failed to initialize RTC");
         MyLog(INFO, "Failed to initialize RTC");
-
         while(1);
     }
 
    // by aziz
   // Serial.println("============ Time Debug ============");
     MyLog(INFO, "============ Time Debug ============");
-   
-   //  Serial.print("RTC Current Time: ");
     MyLog(INFO, "RTC Current Time: ");
-
    nowTime = rtc.RTC_getDateTime();
    Serial.println(rtc.rtcDateTimeToString(nowTime));
 
-     
    // init storege and RGB LED
    irHandler.begin();
    irHandler.init_littleFS(); // TODO: add option to clear FS
-
-   // init RGB
    rgb.RGBInit();
    rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
-   // init_RGB();
-   // init Button 12
    btn.InitButton();
    // init tasks
    rgb.runRGBTask();
    /////////////////////////////////////////////////////////////
    rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
    
-   /*
-   //by ayoub 
-   // Try Ethernet first
-    if (!initEthernet()) {
-        MyLog(INFO, "Falling back to WiFi");
-        network.configureWiFi(ssid, password);
-        network.InitWifiModule();
-        useEthernet = false;
-    } else {
-        useEthernet = true;
-    }
-  */
+  
+  
+   // static bool connected =  connectToNetwork(); // connect to network and OTA
    
-   static bool connected =  connectToNetwork();
-   rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
-   
-   
+  
+  rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
    // initize the ethernet Module
    
    MyLog(INFO, "Finished Initializing all the Modules  ...");
    MyLog(INFO, "Starting Now ...");
-/* delay(50);
-   MyLog(DEBUG, "STARTING WOL TASK ...");
-   Wake_PC_STATE = false;
-   network.initTaskWol();
-*/
-  
-   
    MyLog(DEBUG, "STARTING IR  ...");
    
    bool state = irHandler.IsIRDataavailable(f);
    if (state)
    { // isDataAvailable(settings)) {
       rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
-      MyLog(DEBUG, "COMMAND FOUND  ...");
+      MyLog(DEBUG, "IR COMMAND FOUND  ...");
       // irHandler.dump_data_stored(f);
       MyIRData data;
       MyLog(DEBUG, "Reading data from json file ...");
@@ -1106,7 +925,7 @@ void setup()
       MyLog(ERROR, "No data is avalaible LITTLEFS IS EMPTY, SCANNING NOW ....");
 
       // Perform the scanning operation
-      rgb.setBlinkingStatus(RED_COLOR_STATUS);
+      rgb.setBlinkingStatus(WHITE_COLOR_STATUS);
 
       irHandler.receiveIR(true);
       rgb.setBlinkingStatus(BRIGHT_ORANGE_COLOR_STATUS);
@@ -1119,8 +938,6 @@ void setup()
         irHandler.sendIR();
          // tvOff == 1
       };
-      
-
    }
     MyLog(INFO, "Finished Sending IR data");
    rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
@@ -1157,7 +974,7 @@ void loop()
    if (btn.isLongPressed_5s())
    {
       MyLog(DEBUG, "BUtton PRESSD for more than 5s ....");
-      rgb.setBlinkingStatus(RED_COLOR_STATUS);
+      rgb.setBlinkingStatus(WHITE_COLOR_STATUS);
       // clearr the json file that holds the IR data
       irHandler.clear_file(f);
       rgb.setBlinkingStatus(VIOLET_COLOR_STATUS);
@@ -1173,35 +990,59 @@ void loop()
       } ;
       MyLog(INFO, "Finished Sending IR data ");
       rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
-
       //btime = millis();
-
       // OPT restart the ESP
        //ESP.restart();
-    }else if(millis() - lastStateVerify > 60000) { // Every 1 minute
+    }else if(millis() - lastStateVerify > 30000 && lastOffTV<=4) { // Every 10 s
+
       MyLog(DEBUG, "Checking TV state ...");
+   lastOffTV ++;
+
+   Serial.println(lastOffTV);
+
       lastStateVerify = millis();
     
      while (!(irHandler.getTVStatus(1000) == 1 /*we use pullup*/))
       {
         rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
 
-        MyLog(DEBUG, "Sending IR signal"); 
+        MyLog(DEBUG, "Sending IR signal ON"); 
         irHandler.sendIR();
          // tvOff == 1
       } ;
      // MyLog(INFO, "Finished Sending IR data");
-   rgb.setBlinkingStatus(WHITE_COLOR_STATUS);
+   rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
 
+    }else if(millis() /*- lastOffTV*/ > 40000 && lastOffTV ==2) { // Every 10 s
+     // MyLog(DEBUG, "Checking TV state ...");
+     // lastOffTV = millis();
+      lastStateVerify = 0;
+    
+     //while (!(irHandler.getTVStatus(1000) == 0 /*we use pullup*/)) {
+        rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
+
+        MyLog(DEBUG, "Sending IR signal Off"); 
+         lastOffTV ++;
+
+         Serial.println(lastOffTV);
+
+        irHandler.sendIR();
+         // tvOff == 1
+      //} ;
+     // MyLog(INFO, "Finished Sending IR data");
+   rgb.setBlinkingStatus(RED_COLOR_STATUS);
+    }else if(millis() - lastTimeVerify > 60000) { 
+         lastTimeVerify = millis();
    // by aziz
    Serial.println("======== Time Comparison Debug ========");
 
    Serial.print("RTC Current Time: ");
    nowTime = rtc.RTC_getDateTime();
    Serial.println(rtc.rtcDateTimeToString(nowTime));
-   if(millis() - lastPing > 30000){
-    syncWithServer();
-    manageTVState();
+      
+  // if(millis() - lastPing > 30000){
+  //  syncWithServer();
+  //  manageTVState();
     /*
       if (connectToNetwork()){
          MyLog(INFO, "Connected to network, pinging server ...");
@@ -1214,8 +1055,6 @@ void loop()
       } else {
          MyLog(ERROR, "Failed to connect to network");
       }*/
+  // }
    }
-
-   }
-   
 }

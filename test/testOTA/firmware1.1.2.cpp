@@ -149,10 +149,13 @@ String loadCurrentVersion() {
 
 void setup()
 {
+  Serial.begin(115200);
+
     // init RGB
-   rgb.RGBInit();
-   rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
-    Serial.begin(115200);
+  rgb.RGBInit();
+  rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
+  rgb.runRGBTask();
+  rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
 
     //192.168.1.173
     // IPAddress mip(192, 168, 1, 173);
