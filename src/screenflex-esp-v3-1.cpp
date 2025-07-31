@@ -137,28 +137,58 @@ String DEVICE_ID = "SOLUTIONGENERIQUE1";
 // Function to convert JSON variant to ScheduleData struct
 void convertFromJson(JsonVariantConst src, ScheduleData& dst) {
   dst.timezone = src["timezone"] | dst.timezone;
+  MyLogF(DEBUG, "Timezone from JSON: %s", dst.timezone.c_str());
 
-  // Initialize all days as disabled and clear old data
+  // Initialize all days
   for (int i = 0; i < 7; i++) {
     dst.dayEnabled[i] = false;
     dst.days[i].periods.clear();
   }
 
+  if (!src.containsKey("weekdays")) {
+    MyLog(ERROR, "Missing 'weekdays' key in JSON");
+    return;
+  }
+
   JsonArrayConst weekdays = src["weekdays"];
+  MyLogF(DEBUG, "'weekdays' array size: %d", weekdays.size());
+
   int dayIndex = 0;
-
   for (JsonObjectConst dayEntry : weekdays) {
-    if (dayIndex >= 7) break; // Prevent overflow if array is too long
+    if (dayIndex >= 7) {
+      MyLog(ERROR, "Too many entries in 'weekdays' array (max is 7)");
+      break;
+    }
 
-    dst.dayEnabled[dayIndex] = dayEntry["enabled"] | false;
+    bool enabled = dayEntry["enabled"] | false;
+    dst.dayEnabled[dayIndex] = enabled;
+    MyLogF(DEBUG, "Day %d enabled: %s", dayIndex, enabled ? "true" : "false");
+
+    if (!dayEntry.containsKey("slots")) {
+      MyLogF(ERROR, "Day %d has no 'slots' key", dayIndex);
+      dayIndex++;
+      continue;
+    }
 
     JsonArrayConst slots = dayEntry["slots"];
+    MyLogF(DEBUG, "Day %d has %d slots", dayIndex, slots.size());
+
     for (JsonObjectConst slot : slots) {
       TimePeriod p;
       p.startTime = slot["start_time"] | "";
       p.endTime   = slot["end_time"]   | "";
+
+      if (p.startTime == "" || p.endTime == "") {
+        MyLogF(ERROR, "Day %d has slot with missing time fields", dayIndex);
+        continue;
+      }
+
+      MyLogF(DEBUG, "  Slot: %s -> %s", p.startTime.c_str(), p.endTime.c_str());
+
       dst.days[dayIndex].periods.push_back(p);
     }
+
+    MyLogF(DEBUG, "Total periods saved for day %d: %d", dayIndex, dst.days[dayIndex].periods.size());
 
     dayIndex++;
   }
@@ -722,7 +752,7 @@ bool checkSchedule(const ScheduleData& schedule) {
   int currentWeekDay = getCurrentDay(); // 0 = Sunday, 6 = Saturday
   MyLogF(DEBUG, "currentWeekDay from RTC: %d", currentWeekDay);
 
-  if (schedule.dayEnabled[currentWeekDay]) {
+  if (!schedule.dayEnabled[currentWeekDay]) {
     MyLogF(DEBUG, "Day %d is disabled in schedule", currentWeekDay);
     return false;
   }
@@ -955,54 +985,63 @@ void setup_wifi() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message received [");
-  Serial.print(topic);
-  Serial.println("]:");
+  MyLogF(INFO, "MQTT Message received on topic: %s", topic);
 
   String jsonStr;
-  for (int i = 0; i < length; i++) {
+  for (unsigned int i = 0; i < length; i++) {
     jsonStr += (char)payload[i];
   }
 
-  Serial.println(jsonStr);
+  MyLogF(DEBUG, "Payload: %s", jsonStr.c_str());
 
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<2048> doc;
   DeserializationError error = deserializeJson(doc, jsonStr);
 
   if (error) {
-    Serial.print("deserializeJson() failed: ");
-    Serial.println(error.c_str());
+    MyLogF(ERROR, "deserializeJson() failed: %s", error.c_str());
     return;
   }
 
- 
-  //JsonObject scheduleMQTT = doc["scedule"];
-  currentSchedule = doc["scedule"].as<ScheduleData>();
-  saveSchedule(currentSchedule);
-
+  // Extract and log mode
   const char* mode = doc["mode"];
-  Serial.print("Mode: ");
-  Serial.println(mode);
-  desiredTVState = updateDesiredTVState(mode);
+  if (!mode) {
+    MyLog(ERROR, "Missing 'mode' in JSON");
+    return;
+  }
 
-  JsonArray days = doc["schedule"]["days"];
-  for (int i = 0; i < days.size(); i++) {
-    JsonObject day = days[i];
-    bool enabled = day["enabled"];
-    Serial.printf("Day %d - Enabled: %s\n", i, enabled ? "true" : "false");
-    JsonArray slots = day["slots"];
-     if (slots.isNull() || slots.size() == 0) {
-    Serial.println("  No slots for this day");
-    } else {
-     for (JsonObject slot : slots) {
-      const char* start = slot["start_time"];
-      const char* end   = slot["end_time"];
-      Serial.printf("  Slot: %s -> %s\n", start, end);
-     }
+  MyLogF(DEBUG, "Mode: %s", mode);
+
+  // If mode is "schedule", extract and parse the schedule
+  if (strcmp(mode, "schedule") == 0) {
+    JsonVariant scheduleJson = doc["schedule"];
+    if (scheduleJson.isNull()) {
+      MyLog(ERROR, "Missing 'schedule' field");
+      return;
     }
+
+    currentSchedule = scheduleJson.as<ScheduleData>();
+    saveSchedule(currentSchedule);
+    MyLog(INFO, "Schedule saved with .as<ScheduleData>()");
+
+    // Debug print days and slots
+    for (int i = 0; i < 7; ++i) {
+      bool enabled = currentSchedule.dayEnabled[i];
+      MyLogF(DEBUG, "Day %d - Enabled: %s", i, enabled ? "true" : "false");
+
+      for (const TimePeriod& slot : currentSchedule.days[i].periods) {
+        MyLogF(DEBUG, "  Slot: %s -> %s", slot.startTime.c_str(), slot.endTime.c_str());
+      }
+    }
+
+    // Update desired state using mode
+    desiredTVState = updateDesiredTVState(mode);
+    MyLogF(DEBUG, "Desired TV state set to: %d", desiredTVState);
+  } else {
+    // Any other mode
+    desiredTVState = updateDesiredTVState(mode);
+    MyLogF(DEBUG, "Desired TV state set to: %d", desiredTVState);
   }
 }
-
 
 
 void reconnect() {
