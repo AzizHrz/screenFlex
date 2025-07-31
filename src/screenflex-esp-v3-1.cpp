@@ -78,15 +78,19 @@ IPAddress serverIp(SERVER_IP); // Change to your Flask server IP 172.20.10.2 //1
 const int serverPort = SERVER_PORT;
 
 // TV State Enumeration - Add this before PersistentData struct
+/*
 enum TVState {
   TV_OFF,          // 0 Confirmed OFF state  
   TV_ON,           // 1  ON state
   TV_UNKNOWN,      // 2 Confirmed Initial/unknown state
   TV_TRANSITIONING // 3 Currently changing state
 };
+*/
+#include "TVStateUtils.h"
 // Global State Variables
 TVState currentTVState = TV_UNKNOWN;
-TVState desiredTVState = TV_UNKNOWN;
+//TVState desiredTVState = TV_UNKNOWN;
+TVState desiredTVState = TV_ON; // just for testing
 
 bool scheduleModeEnabled; // true = use schedule, false = use server commands
 bool currentMode; // true = use schedule, false = use server commands
@@ -102,10 +106,10 @@ struct ScheduleDay {
 };
 
 struct ScheduleData {
-  bool active;
+  //bool active;
+  String timezone;
   bool dayEnabled[7];  // Sunday=0, ..., Saturday=6
   ScheduleDay days[7]; // One ScheduleDay per weekday
-  String timezone;
 };
 
 ScheduleData currentSchedule;
@@ -132,30 +136,31 @@ String DEVICE_ID = "SOLUTIONGENERIQUE1";
 
 // Function to convert JSON variant to ScheduleData struct
 void convertFromJson(JsonVariantConst src, ScheduleData& dst) {
-  dst.active = src["active"] | dst.active;
   dst.timezone = src["timezone"] | dst.timezone;
 
-  // Initialize all days as disabled
+  // Initialize all days as disabled and clear old data
   for (int i = 0; i < 7; i++) {
     dst.dayEnabled[i] = false;
     dst.days[i].periods.clear();
   }
 
-  // Read the "weekdays" array from JSON
   JsonArrayConst weekdays = src["weekdays"];
-  for (JsonObjectConst dayEntry : weekdays) {
-    int dayIndex = dayEntry["day"] | -1;
-    if (dayIndex >= 0 && dayIndex < 7) {
-      dst.dayEnabled[dayIndex] = true;
+  int dayIndex = 0;
 
-      JsonArrayConst periods = dayEntry["periods"];
-      for (JsonObjectConst period : periods) {
-        TimePeriod p;
-        p.startTime = period["start_time"] | "";
-        p.endTime = period["end_time"] | "";
-        dst.days[dayIndex].periods.push_back(p);
-      }
+  for (JsonObjectConst dayEntry : weekdays) {
+    if (dayIndex >= 7) break; // Prevent overflow if array is too long
+
+    dst.dayEnabled[dayIndex] = dayEntry["enabled"] | false;
+
+    JsonArrayConst slots = dayEntry["slots"];
+    for (JsonObjectConst slot : slots) {
+      TimePeriod p;
+      p.startTime = slot["start_time"] | "";
+      p.endTime   = slot["end_time"]   | "";
+      dst.days[dayIndex].periods.push_back(p);
     }
+
+    dayIndex++;
   }
 }
 
@@ -205,7 +210,6 @@ bool loadMode(bool& scheduleModeEnabled) { // Load the mode from LittleFS
   file.close();
   return true;
 }
-
 bool saveSchedule(const ScheduleData& schedule) {
   if (!LittleFS.begin()) {
     MyLog(ERROR, "Failed to mount LittleFS");
@@ -218,22 +222,19 @@ bool saveSchedule(const ScheduleData& schedule) {
     return false;
   }
 
-  DynamicJsonDocument doc(2048); // Increased size for more data
-  doc["active"] = schedule.active;
+  DynamicJsonDocument doc(2048); // Adjust size as needed
   doc["timezone"] = schedule.timezone;
 
-  JsonArray daysArray = doc.createNestedArray("weekdays");
+  JsonArray weekdaysArray = doc.createNestedArray("weekdays");
   for (int day = 0; day < 7; ++day) {
-    if (schedule.dayEnabled[day]) {
-      JsonObject dayObj = daysArray.createNestedObject();
-      dayObj["day"] = day;
+    JsonObject dayObj = weekdaysArray.createNestedObject();
+    dayObj["enabled"] = schedule.dayEnabled[day];
 
-      JsonArray periodsArray = dayObj.createNestedArray("periods");
-      for (const TimePeriod& period : schedule.days[day].periods) {
-        JsonObject periodObj = periodsArray.createNestedObject();
-        periodObj["start_time"] = period.startTime;
-        periodObj["end_time"] = period.endTime;
-      }
+    JsonArray slotsArray = dayObj.createNestedArray("slots");
+    for (const TimePeriod& period : schedule.days[day].periods) {
+      JsonObject slot = slotsArray.createNestedObject();
+      slot["start_time"] = period.startTime;
+      slot["end_time"] = period.endTime;
     }
   }
 
@@ -672,58 +673,109 @@ int getCurrentDay() {
 
 }
 
+// bool checkSchedule(const ScheduleData& schedule) {
+//   int currentWeekDay = getCurrentDay(); // 0 = Sunday, 6 = Saturday
+//   MyLogF(DEBUG, "currentWeekDay from RTC : %d ", currentWeekDay);
+
+//   if (schedule.dayEnabled[currentWeekDay]) {
+//   MyLogF(DEBUG, "Day %d is disabled in schedule", currentWeekDay);
+
+//     return false; // Day is disabled
+//   }
+
+//   RtcDateTime now = rtc.RTC_getDateTime();
+//   int currentMins = now.Hour() * 60 + now.Minute();
+//   MyLogF(DEBUG, "currentMins from RTC: %d", currentMins);
+  
+//   const std::vector<TimePeriod>& periods = schedule.days[currentWeekDay].periods;
+
+//   for (const TimePeriod& period : periods) {
+//     int startH, startM, endH, endM;
+
+//     if (sscanf(period.startTime.c_str(), "%d:%d", &startH, &startM) != 2 ||
+//         sscanf(period.endTime.c_str(), "%d:%d", &endH, &endM) != 2) {
+//       MyLog(ERROR, "Invalid time format in schedule");
+//       continue;
+//     }
+
+//     int startMins = startH * 60 + startM;
+//     int endMins   = endH * 60 + endM;
+//   MyLogF(DEBUG, "startMins from schedule: %d", startMins);
+//   MyLogF(DEBUG, "currentMins from RTC: %d", endMins);
+
+
+//     // Handle overnight time windows (e.g., 22:00 – 06:00)
+//     if (endMins < startMins) {
+//       if (currentMins >= startMins || currentMins <= endMins) {
+//         return true;
+//       }
+//     } else {
+//       if (currentMins >= startMins && currentMins <= endMins) {
+//         return true;
+//       }
+//     }
+//   }
+//   MyLogF(DEBUG, "Schedule return false ");
+//   return false;
+// }
 bool checkSchedule(const ScheduleData& schedule) {
-    if (!schedule.active) {
-        return false;
-    }
+  int currentWeekDay = getCurrentDay(); // 0 = Sunday, 6 = Saturday
+  MyLogF(DEBUG, "currentWeekDay from RTC: %d", currentWeekDay);
 
-    RtcDateTime now = rtc.RTC_getDateTime();
-    //int currentWeekDay = rtc.RTC_getWeekDay(); // 0 = Sunday, 6 = Saturday
-    int currentWeekDay = getCurrentDay();
-    
-    if (!schedule.dayEnabled[currentWeekDay]) {
-        return false; // No active periods for today
-    }
-
-    int currentMins = now.Hour() * 60 + now.Minute();
-
-    const std::vector<TimePeriod>& periods = schedule.days[currentWeekDay].periods;
-
-    for (const TimePeriod& period : periods) {
-        int startH, startM, endH, endM;
-
-        if (sscanf(period.startTime.c_str(), "%d:%d", &startH, &startM) != 2 ||
-            sscanf(period.endTime.c_str(), "%d:%d", &endH, &endM) != 2) {
-            MyLog(ERROR, "Invalid time format in schedule");
-            continue;
-        }
-
-        int startMins = startH * 60 + startM;
-        int endMins = endH * 60 + endM;
-
-        // Handle overnight schedules (e.g., 22:00 - 06:00)
-        if (endMins < startMins) {
-            if (currentMins >= startMins || currentMins <= endMins) {
-                return true;
-            }
-        } else {
-            if (currentMins >= startMins && currentMins <= endMins) {
-                return true;
-            }
-        }
-    }
-
+  if (schedule.dayEnabled[currentWeekDay]) {
+    MyLogF(DEBUG, "Day %d is disabled in schedule", currentWeekDay);
     return false;
+  }
+
+  RtcDateTime now = rtc.RTC_getDateTime();
+  int currentMins = now.Hour() * 60 + now.Minute();
+  MyLogF(DEBUG, "currentMins from RTC: %d", currentMins);
+  
+  const std::vector<TimePeriod>& periods = schedule.days[currentWeekDay].periods;
+  MyLogF(DEBUG, "Number of periods for day %d: %d", currentWeekDay, periods.size());
+
+  for (const TimePeriod& period : periods) {
+    MyLogF(DEBUG, "Period: start = %s | end = %s", period.startTime.c_str(), period.endTime.c_str());
+
+    int startH, startM, endH, endM;
+    if (sscanf(period.startTime.c_str(), "%d:%d", &startH, &startM) != 2 ||
+        sscanf(period.endTime.c_str(), "%d:%d", &endH, &endM) != 2) {
+      MyLog(ERROR, "Invalid time format in schedule");
+      continue;
+    }
+
+    int startMins = startH * 60 + startM;
+    int endMins   = endH * 60 + endM;
+
+    MyLogF(DEBUG, "Parsed startMins: %d | endMins: %d", startMins, endMins);
+
+    // Handle overnight windows (e.g., 22:00 – 06:00)
+    if (endMins < startMins) {
+      if (currentMins >= startMins || currentMins <= endMins) {
+        MyLog(DEBUG, "Current time is within overnight period");
+        return true;
+      }
+    } else {
+      if (currentMins >= startMins && currentMins <= endMins) {
+        MyLog(DEBUG, "Current time is within normal period");
+        return true;
+      }
+    }
+  }
+
+  MyLog(DEBUG, "No active time period matched; schedule returns false");
+  return false;
 }
 
+
 TVState updateDesiredTVState(const char* mode) {
-   if (mode == "on"){
+   if (strcmp(mode, "on") == 0){
         MyLog(INFO, "TV ON command received");
         return TV_ON;
-    }else if (mode == "off") {
+    }else if (strcmp(mode, "off") == 0) {
         MyLog(INFO, "TV Off command received");
         return TV_OFF;
-    }else if(mode == "schedule") {
+    }else if(strcmp(mode, "schedule") == 0) {
         MyLog(INFO, "TV Schedule command received");
         return checkSchedule(currentSchedule) ? TV_ON : TV_OFF;
     }
@@ -751,7 +803,7 @@ bool savePersistentData() {
     doc["mode"]["use_schedule"] = persistentData.scheduleModeEnabled;
 
     // Save schedule
-    doc["schedule"]["active"] = persistentData.schedule.active;
+   // doc["schedule"]["active"] = persistentData.schedule.active;
     doc["schedule"]["timezone"] = persistentData.schedule.timezone;
 
     JsonArray weekdaysArray = doc["schedule"].createNestedArray("weekdays");
@@ -923,6 +975,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
+ 
+  //JsonObject scheduleMQTT = doc["scedule"];
+  currentSchedule = doc["scedule"].as<ScheduleData>();
+  saveSchedule(currentSchedule);
+
   const char* mode = doc["mode"];
   Serial.print("Mode: ");
   Serial.println(mode);
@@ -1055,7 +1112,7 @@ void setup()
          // tvOff == 1
       };
    */}
-    MyLog(INFO, "Finished Sending IR data");
+    MyLog(INFO, "Finished checking IR data");
    rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
 
 
@@ -1109,8 +1166,10 @@ void loop()
             case 1: // TV_ON
             currentTVState = TV_ON;
             MyLog(INFO, "TV is currently ON");
+            MyLogF(INFO, "currentTVState : %s | desiredTVState %s", toString(currentTVState), toString(desiredTVState));
             if(desiredTVState != currentTVState) {
               MyLog(INFO, "currentTVSTtae differs for desired state");
+
               changeTVState();
               }
             break;
