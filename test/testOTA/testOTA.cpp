@@ -150,6 +150,8 @@ String loadCurrentVersion() {
 void setup()
 {
   Serial.begin(115200);
+  while (!Serial);
+
 
     // init RGB
    rgb.RGBInit();
@@ -160,7 +162,7 @@ void setup()
     //192.168.1.173
     // IPAddress mip(192, 168, 1, 173);
 // 172.20.10.2:5000
-    IPAddress mip(172, 20, 10,3);
+    IPAddress mip(172, 20, 10,2);
 
     Network.setServerIp(mip);
     Network.setSercerPort(5000);
@@ -191,7 +193,6 @@ void setup()
     MyLogF(INFO, "Server version: %s", newVersion.c_str());
 
     Serial.println(newVersion);
-
     String currentVersion = loadCurrentVersion();
     MyLogF(INFO, "Current version: %s", currentVersion.c_str());
     if (is_newer_version(currentVersion, newVersion)) {

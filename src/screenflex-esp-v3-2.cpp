@@ -1,8 +1,10 @@
 // /*
-//  * Software Verision 1.3.1 , HARZALLAH Aziz
-//  *16/07/2025
+//  * Software Verision 3.2.1 , HARZALLAH Aziz
+//  *31/07/2025
 //  * @screen_flex
-//  *fore more information go to durtymain.txt
+//  * ScreenFlex application using MQTT, with OTA check during setup() 
+//  * if a newer firmware version exists on the Flask server
+
 //  */
 
 #include "conf.h"
@@ -133,6 +135,11 @@ PersistentData persistentData;
 //#define VERSION_FILE "/version.json"
 
 String DEVICE_ID = "SOLUTIONGENERIQUE1";
+
+bool saveCurrentVersion(const String&);
+String loadCurrentVersion();
+bool is_newer_version(const String& , const String&);
+
 
 // Function to convert JSON variant to ScheduleData struct
 void convertFromJson(JsonVariantConst src, ScheduleData& dst) {
@@ -314,7 +321,7 @@ bool loadWiFiConfig(WiFiConfig& config) {
 
   File file = LittleFS.open(WIFI_CONFIG_FILE, "r");
   if (!file) {
-    MyLog(ERROR, "Failed to open WiFi config file");
+    MyLog(ERROR, "Failed to open WiFi config file for reading");
     return false;
   }
 
@@ -348,17 +355,31 @@ bool connectToNetwork() {
 
         network.InitWifiModule();
         network.configureOTA(true);
+        // new for screenFlex-esp-v3-2.cpp
+        MyLog(INFO, "Checking for OTA updates...delay 3000ms");
+        delay(3000);
+    
+    String newVersion = network.GetFirmwareVersion();
+    MyLogF(INFO, "Server version: %s", newVersion.c_str());
 
+    Serial.println(newVersion);
+
+    String currentVersion = loadCurrentVersion();
+
+    MyLogF(INFO, "Current version: %s", currentVersion.c_str());
+    if (is_newer_version(currentVersion, newVersion)) {
         bool st = network.OTA();
         if (st)
         {
             MyLog(INFO, "RESTATRING OTA ");
+            saveCurrentVersion(newVersion); // ✅ Save new version after success
             ESP.restart();
         }
         else
         {
             MyLog(INFO, " OTA Failed miserably ");
         }
+    }    
         useEthernet = false;
         return true;
   } else {
@@ -385,7 +406,8 @@ bool saveCurrentVersion(const String& version) {
   return true;
 }
 
-String loadCurrentVersion() {
+// to do : error handling
+String loadCurrentVersion() { 
   if (!LittleFS.exists("/version.json")) {
     MyLog(INFO, "No version file found, creating one with default version");
     saveCurrentVersion(FIRMWARE_VERSION); // FIRMWARE_VERSION should be defined
@@ -703,51 +725,6 @@ int getCurrentDay() {
 
 }
 
-// bool checkSchedule(const ScheduleData& schedule) {
-//   int currentWeekDay = getCurrentDay(); // 0 = Sunday, 6 = Saturday
-//   MyLogF(DEBUG, "currentWeekDay from RTC : %d ", currentWeekDay);
-
-//   if (schedule.dayEnabled[currentWeekDay]) {
-//   MyLogF(DEBUG, "Day %d is disabled in schedule", currentWeekDay);
-
-//     return false; // Day is disabled
-//   }
-
-//   RtcDateTime now = rtc.RTC_getDateTime();
-//   int currentMins = now.Hour() * 60 + now.Minute();
-//   MyLogF(DEBUG, "currentMins from RTC: %d", currentMins);
-  
-//   const std::vector<TimePeriod>& periods = schedule.days[currentWeekDay].periods;
-
-//   for (const TimePeriod& period : periods) {
-//     int startH, startM, endH, endM;
-
-//     if (sscanf(period.startTime.c_str(), "%d:%d", &startH, &startM) != 2 ||
-//         sscanf(period.endTime.c_str(), "%d:%d", &endH, &endM) != 2) {
-//       MyLog(ERROR, "Invalid time format in schedule");
-//       continue;
-//     }
-
-//     int startMins = startH * 60 + startM;
-//     int endMins   = endH * 60 + endM;
-//   MyLogF(DEBUG, "startMins from schedule: %d", startMins);
-//   MyLogF(DEBUG, "currentMins from RTC: %d", endMins);
-
-
-//     // Handle overnight time windows (e.g., 22:00 – 06:00)
-//     if (endMins < startMins) {
-//       if (currentMins >= startMins || currentMins <= endMins) {
-//         return true;
-//       }
-//     } else {
-//       if (currentMins >= startMins && currentMins <= endMins) {
-//         return true;
-//       }
-//     }
-//   }
-//   MyLogF(DEBUG, "Schedule return false ");
-//   return false;
-// }
 bool checkSchedule(const ScheduleData& schedule) {
   int currentWeekDay = getCurrentDay(); // 0 = Sunday, 6 = Saturday
   MyLogF(DEBUG, "currentWeekDay from RTC: %d", currentWeekDay);
@@ -964,9 +941,9 @@ if (millis() - lastIRSendTime >= IR_SEND_COOLDOWN) {
 // Function to CHANGE TV state based on the current mode
 void changeTVState(){
     MyLog(DEBUG, "Sending IR command: current state incompatible with desired ...");
-      while (!(irHandler.getTVStatus(1000) == TV_ON /*we use pullup*/))
+      while (!(irHandler.getTVStatus(1000) == desiredTVState == (TV_OFF || TV_ON) /* TV_ON we use pullup*/))
       {
-        MyLog(DEBUG, ".");
+        MyLog(DEBUG, "*");
          irHandler.sendIR();
          // tvOff == 1
       } ;
@@ -1082,23 +1059,26 @@ void setup()
    btn.InitButton();
    // init tasks
    rgb.runRGBTask();
+   //delay(3000);
    /////////////////////////////////////////////////////////////
    rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
-
-   // static bool connected =  connectToNetwork(); // connect to network and OTA
    
+     // initize internet Module
+    MyLog(INFO, "Initializing Network Module ... + delay 300ms");
+   // Network.configureWiFi(ssid, passwd);
+    //Network.InitWifiModule();
+   static bool connected =  connectToNetwork(); // connect to network and OTA
+   
+   delay(3000);
   
   rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
 
 
-   // initize internet Module
-    MyLog(INFO, "Initializing Network Module ...");
-   // Network.configureWiFi(ssid, passwd);
-    //Network.InitWifiModule();
+ 
 
    
    // mqtt setup =================================================
-   setup_wifi();
+  // setup_wifi(); // same as InitWifiModule in connectToNetwork()
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
@@ -1205,7 +1185,7 @@ void loop()
             case 1: // TV_ON
             currentTVState = TV_ON;
             MyLog(INFO, "TV is currently ON");
-            MyLogF(INFO, "currentTVState : %s | desiredTVState %s", toString(currentTVState), toString(desiredTVState));
+            //MyLogF(INFO, "currentTVState : %s | desiredTVState %s", toString(currentTVState), toString(desiredTVState));
             if(desiredTVState != currentTVState) {
               MyLog(INFO, "currentTVSTtae differs for desired state");
 
@@ -1223,7 +1203,9 @@ void loop()
             default:
                 MyLog(ERROR, "Unknown TV state read from hardware");
                 break;
-            }       
+            }  
+            MyLogF(INFO, "currentTVState : %s | desiredTVState %s", toString(currentTVState), toString(desiredTVState));
+
         }
          
 
