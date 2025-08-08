@@ -35,7 +35,7 @@ snprintf(macString, _sizeMacString, "%02X:%02X:%02X:%02X:%02X:%02X", arr[0], arr
 // return macString;
 }
 void NetworkStack::InitWifiModule(){ 
-    #if (ENABLE_WIFI == 1)
+#if (ENABLE_WIFI == 1)
     /*
     We are Enabling the WiFi module for server communication,
     This macro is used also to speed up testing process when we don't need wifi
@@ -351,6 +351,94 @@ const String NetworkStack::GetFirmwareVersion()
     }
     else
         return "";
+}
+
+const String NetworkStack::getUserFromServer()
+{
+   // MyLogF(INFO, "Requsting Firmware version form Server %s", serverIP.toString());
+    MyLogF(INFO, "Requsting Status & User form Server %s", GetServerIP().toString());
+
+#if (MyServ == 1)
+    String response = HTTPGET("/api/devices/status/02347789");
+    Serial.println(response);
+#else
+    String response = HTTPGET("/api/v1/screenflex/box/version");
+#endif
+    // TODO: Check if response is empty
+    StaticJsonDocument<96> doc;
+
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (error)
+    {
+        MyLogF(ERROR, "deserializeJson() GetUserFromServer() failed: %s", error.f_str());
+        return "";
+    }
+
+    bool success = doc["success"]; // true
+    String status = doc["status"].as<String>();
+    if (success == true && status == "active")
+    {
+        const String user = doc["user"].as<String>(); // "1.0.0"
+        return user;
+    }
+    else
+        return "";
+}
+
+const String NetworkStack::pingTokenServer() {
+    // Build JSON payload
+    DynamicJsonDocument doc(1024);
+    doc["machineid"] = "MAC";
+    doc["os"] = "esp32";
+
+    String payload;
+    serializeJson(doc, payload);
+
+    // Make HTTP POST call using custom method
+    String response = HTTPPOST("/api/devices/register", "application/json", payload);
+
+    if (response.length() == 0) {
+        MyLog(ERROR, "Empty response or connection failed.");
+        return "false";
+    }
+
+    // Debug the raw response (optional)
+    Serial.println("Raw Response:");
+    Serial.println(response);
+    
+
+    
+    DynamicJsonDocument resDoc(1024);
+    DeserializationError error = deserializeJson(resDoc, response);
+
+    if (error) {
+        MyLogF(ERROR, "JSON parsing failed: %s", error.c_str());
+        return "false";
+    }
+
+    if (resDoc["success"]) {
+        String status = resDoc["status"].as<String>();
+        String token = resDoc["token"].as<String>();
+
+        MyLogF(INFO, "token: %s", token.c_str());
+        MyLogF(INFO, "Status: %s", status.c_str());
+
+        if (status == "active") {
+            MyLog(INFO, "Access granted. Status is ACTIVE.");
+        } else if (status == "pending") {
+            MyLog(ERROR, "Access is still pending.");
+        } else if (status == "revoked") {
+            MyLog(ERROR, "Access has been revoked.");
+        } else {
+            MyLog(ERROR, "Unknown status received.");
+        }
+
+        return token; // Return the token
+    } else {
+        MyLog(ERROR, "Server responded with success=false.");
+        return "false"; // Indicate failure
+    }
 }
 const String NetworkStack::GetSchedule_HTTP(){ 
 

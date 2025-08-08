@@ -85,11 +85,12 @@ const uint8_t targetMAC[] = {0x00, 0xe0, 0x4c, 0x38, 0xcd, 0xc2};
  */
 //172.20.10.2:5000
 // #define MYSERV_IP (192, 168, 1, 14) 
- #define MYSERV_IP (172, 20, 10, 2) 
+// #define MYSERV_IP (172, 20, 10, 2) // aziz
 //92.168.1.173:5000
 // my server ip
 //#define MYSERV_IP (192, 168, 1, 173) 
 //#define MYSERV_IP (172, 16, 137, 146) 
+ #define MYSERV_IP (172, 16, 137, 122) // ranim
 
 /** 
  * @def MYSERV_PORT

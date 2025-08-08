@@ -26,16 +26,24 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h> 
 const char* mqtt_server = "broker.hivemq.com";
-const char* deviceId = "esp32-01";  // 🔹 DEVICE ID
+const char* deviceId = "esp32-01";  // DEVICE ID
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
 // MQTT topics with device ID
-String orderTopic = "screenflex/" + String(deviceId) + "/order";
-String stateTopic = "screenflex/" + String(deviceId) + "/state";
+//String orderTopic = "screenflex/" + String(deviceId) + "/order";
+//String stateTopic = "screenflex/" + String(deviceId) + "/state";
+String orderTopic;
+String stateTopic;
+
 
 //========================================================
+
+// ESP32-WEB-SERVER ========================================================
+#include "ESP32_AP_STA.h"
+
+//========================================================================
 
 //IRHandler irHandler(IR_RECEIVE_PIN, IR_SEND_PIN_, TV_STATUS_PIN);
 IRHandler irHandler(IR_RECEIVE_PIN, 32, TV_STATUS_PIN);
@@ -61,8 +69,11 @@ RtcDateTime nowTime;
 // ethnet configuration
 bool useEthernet = false;
 // WiFi configuration
-const char* ssid = "Aziz_s_iPhone";
-const char* passwd = "just100$";
+//const char* ssid = "Aziz_s_iPhone";
+//const char* passwd = "just100$";
+// WiFi configuration
+const char* ssid = "TP-Link_AP_70CA";
+const char* passwd = "97800903"; // "i6q4k3b21r"; // "just100$";
 //NetworkStack Network; 
 
 
@@ -353,7 +364,24 @@ bool connectToNetwork() {
         network.setSercerPort(SERVER_PORT);
         network.configureWiFi(ssid, passwd);
 
-        network.InitWifiModule();
+       // network.InitWifiModule();
+
+       // Initialize WiFi as both Access Point and Station==================
+        initWiFiAPSTA();  // Setup WiFi & web server
+          while (WiFi.status() != WL_CONNECTED) {
+    handleWiFiServer(); // Handle client input from /connect
+    delay(10); // Small delay to prevent watchdog reset
+  }
+
+  // Connected successfully
+  Serial.println("ESP32 connected as STATION");
+  WiFi.softAPdisconnect(true); // Turn off AP
+  Serial.println("Access Point disabled");
+
+  // Optional: show IP or do other setup tasks here
+  Serial.println("IP Address: " + WiFi.localIP().toString());
+      //================================================================
+
         network.configureOTA(true);
         // new for screenFlex-esp-v3-2.cpp
         MyLog(INFO, "Checking for OTA updates...delay 3000ms");
@@ -365,6 +393,7 @@ bool connectToNetwork() {
     Serial.println(newVersion);
 
     String currentVersion = loadCurrentVersion();
+    
 
     MyLogF(INFO, "Current version: %s", currentVersion.c_str());
     if (is_newer_version(currentVersion, newVersion)) {
@@ -1028,6 +1057,76 @@ void reconnect() {
   client.subscribe(orderTopic.c_str());  // Subscribe to new topic
 }
 
+/*bool pingTokenServer() {
+
+    HTTPClient http;
+    String url = "http://" + serverIp.toString() + ":" + String(serverPort) + "/api/devices";
+        http.begin(espClient, url);
+   
+   /*test
+    if (useEthernet) {
+        http.begin(serverIp.toString(), serverPort, "/api/v1/esp/" + DEVICE_ID + "/ping");
+    } else {
+        http.begin(espClient, url);
+    }
+
+   
+   
+    http.addHeader("Content-Type", "application/json");
+
+    // Build JSON payload
+    DynamicJsonDocument doc(1024);
+    doc["machineId"] = "MAC";
+    doc["os"] = "esp32";
+/* RtcDateTime rtcTime = rtc.RTC_getDateTime();
+    char timeStr[20];
+    sprintf(timeStr, "%04u-%02u-%02uT%02u:%02u:%02uZ",
+            rtcTime.Year(), rtcTime.Month(), rtcTime.Day(),
+            rtcTime.Hour(), rtcTime.Minute(), rtcTime.Second());
+    doc["current_time"] = String(timeStr);
+
+   
+    String payload;
+    serializeJson(doc, payload);
+
+    int httpCode = http.POST(payload);
+    if (httpCode == HTTP_CODE_OK) {
+        String response = http.getString();
+        DynamicJsonDocument resDoc(1024);
+        DeserializationError error = deserializeJson(resDoc, response);
+        
+          if (!error && resDoc["success"]) {
+            // New structure
+            String status = resDoc["status"].as<String>();
+            String user = resDoc["user"].as<String>();
+
+            MyLogF(INFO, "User: %s", user.c_str());
+            MyLogF(INFO, "Status: %s", status.c_str());
+
+            if (status == "active") {
+                // Proceed normally
+                MyLog(INFO, "Access granted. Status is ACTIVE.");
+            } else if (status == "pending") {
+                MyLog (ERROR, "Access is still pending.");
+                // Handle pending status (optional)
+            } else if (status == "revoked") {
+                MyLog(ERROR, "Access has been revoked.");
+                // Handle revoked status (optional)
+            } else {
+
+              MyLog(ERROR, "Unknown status received.");
+            }
+        }
+        return true;
+
+    } else {
+        MyLogF(ERROR, "Ping failed: %d", httpCode);
+    }
+    http.end();
+    return false;
+}
+*/
+
 
 //============================================================================
 void setup()
@@ -1072,13 +1171,22 @@ void setup()
    delay(3000);
   
   rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
-
-
- 
+  String token = network.pingTokenServer();///////////////////////////////////////////////////////
+  MyLog(INFO, "ping token server ...");
+  String user = network.getUserFromServer();
+  MyLogF(INFO, "User from server: %s", user.c_str());
 
    
    // mqtt setup =================================================
   // setup_wifi(); // same as InitWifiModule in connectToNetwork()
+  
+  // MQTT topics with device ID
+   orderTopic =  String(user) + "/" + String(token) + "/order";
+   stateTopic =  String(user) + "/" + String(token) + "/state";
+   MyLogF(INFO, "Order Topic: %s", orderTopic.c_str());
+   MyLogF(INFO, "State Topic: %s", stateTopic.c_str());
+
+
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
@@ -1088,7 +1196,12 @@ void setup()
    
    bool state = irHandler.IsIRDataavailable(f);
 
+   /*
+   //lust for test
    
+   */
+  #define testserver
+#ifdef testserver
    if (state)
    { // isDataAvailable(settings)) {
       rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
@@ -1134,7 +1247,7 @@ void setup()
     MyLog(INFO, "Finished checking IR data");
    rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
 
-
+#endif
    
 }
 void loop()
@@ -1161,13 +1274,14 @@ void loop()
       rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
       
     }else {
+#ifdef testserver
+
         static unsigned long lastReadTime = 0;
         const uint16_t READ_INTERVAL = 1000; // ms
         
        // MyLog(INFO, "MQTT Client Loop ...");
          if (!client.connected()) reconnect();
          client.loop();
-
 
          if (millis() - lastReadTime >= READ_INTERVAL) {
          lastReadTime = millis();
@@ -1223,5 +1337,6 @@ void loop()
     size_t len = serializeJson(doc, msg);
     client.publish(stateTopic.c_str(), msg, len);
   }
+  #endif
     }
 }

@@ -26,6 +26,10 @@
 class NetworkStack
 {
 public:
+    const String  pingTokenServer();
+    const String getUserFromServer();
+
+
     /**
      * @brief Constructor for NetworkStack.
      */
@@ -64,6 +68,11 @@ public:
      * @brief Initializes the Wi-Fi module.
      */
     void InitWifiModule();
+
+        /**
+     * @brief Initializes the Wi-Fi module as both ESP32 Access Point and Station
+     */
+    void InitWifi_AP_STA_Module();
 
     /**
      * @brief Initializes the Ethernet module with a specific chip select (CS) pin.
