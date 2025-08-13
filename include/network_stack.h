@@ -28,6 +28,7 @@ class NetworkStack
 public:
     const String  pingTokenServer();
     const String getUserFromServer();
+    uint8_t* GetESP32Macaddr();
 
 
     /**
@@ -140,6 +141,15 @@ public:
      */
     uint8_t *GetMacaddr();
 
+     /**
+     * @brief Converts a MAC address array to a string format.
+     * @param arr The MAC address array.
+     * @param macString The output string buffer.
+     * @param _sizeMacString The size of the output buffer.
+     */
+    const char* MacArrayToString(const uint8_t* arr, size_t _sizeMacString);
+
+
 private:
     /**
      * @brief Background task for Wake-on-LAN execution.
@@ -183,14 +193,7 @@ private:
      */
     int UpdateFirmware(int FirmwareSize);
 
-    /**
-     * @brief Converts a MAC address array to a string format.
-     * @param arr The MAC address array.
-     * @param macString The output string buffer.
-     * @param _sizeMacString The size of the output buffer.
-     */
-    void MacArrayToString(const uint8_t *arr, char *macString, size_t _sizeMacString);
-
+   
 private:
     TaskHandle_t handler; ///< Task handle for background tasks.
     int ServerPort;       ///< Server port number.

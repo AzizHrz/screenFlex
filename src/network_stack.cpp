@@ -2,6 +2,8 @@
 #include "Mylog.h"
 #include <ArduinoJson.h>
 #include "schedule.h"
+#include <esp_wifi.h>
+
 
 
 NetworkStack::NetworkStack() : MyMacAddr{0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}
@@ -29,11 +31,13 @@ void NetworkStack::configureOTA(bool enable)
         MyLog(INFO, "Rollback Disabled");
     }
 }
-void NetworkStack::MacArrayToString(const uint8_t* arr,char* macString,size_t _sizeMacString){
-// char* macString[18]; 
-snprintf(macString, _sizeMacString, "%02X:%02X:%02X:%02X:%02X:%02X", arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]);
-// return macString;
+const char* NetworkStack::MacArrayToString(const uint8_t* arr, size_t _sizeMacString) {
+    static char macString[18]; // 6*2 hex + 5 colons + null terminator = 18
+    snprintf(macString, _sizeMacString, "%02X:%02X:%02X:%02X:%02X:%02X",
+             arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]);
+    return macString;
 }
+
 void NetworkStack::InitWifiModule(){ 
 #if (ENABLE_WIFI == 1)
     /*
@@ -213,6 +217,14 @@ uint8_t *NetworkStack::GetMacaddr()
 
     return MyMacAddr;
 }
+//by aziz 
+uint8_t* NetworkStack::GetESP32Macaddr()
+{
+    static uint8_t mac[6];
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    return mac;
+}
+
 
 String NetworkStack::HTTPGET(const String &reqPath)
 {
@@ -389,7 +401,8 @@ const String NetworkStack::getUserFromServer()
 const String NetworkStack::pingTokenServer() {
     // Build JSON payload
     DynamicJsonDocument doc(1024);
-    doc["machineid"] = "MAC";
+    //doc["machineid"] = "MAC";
+    doc["machineid"] = String(MacArrayToString(GetESP32Macaddr(), 18));
     doc["os"] = "esp32";
 
     String payload;

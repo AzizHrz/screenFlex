@@ -1137,6 +1137,19 @@ void setup()
    MyLog(INFO, "----------------------------------------");
    
    
+   // init storege and RGB LED
+   irHandler.begin();
+   irHandler.init_littleFS(); // TODO: add option to clear FS
+   rgb.RGBInit();
+   rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
+   btn.InitButton();
+   // init tasks
+   rgb.runRGBTask();
+   //delay(3000);
+   /////////////////////////////////////////////////////////////
+   rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
+   
+
    if (!rtc.begin()) {
         //Serial.println("Failed to initialize RTC");
         MyLog(INFO, "Failed to initialize RTC");
@@ -1150,22 +1163,24 @@ void setup()
    nowTime = rtc.RTC_getDateTime();
    Serial.println(rtc.rtcDateTimeToString(nowTime));
 
-   // init storege and RGB LED
-   irHandler.begin();
-   irHandler.init_littleFS(); // TODO: add option to clear FS
-   rgb.RGBInit();
-   rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
-   btn.InitButton();
-   // init tasks
-   rgb.runRGBTask();
-   //delay(3000);
-   /////////////////////////////////////////////////////////////
-   rgb.setBlinkingStatus(YELLOW_COLOR_STATUS);
-   
      // initize internet Module
     MyLog(INFO, "Initializing Network Module ... + delay 300ms");
    // Network.configureWiFi(ssid, passwd);
     //Network.InitWifiModule();
+      Serial.print(" ESP32 Board MAC Address: ");
+      /*uint8_t* mac = network.GetESP32Macaddr();
+  if (mac) {
+    Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
+                  mac[0], mac[1], mac[2],
+                  mac[3], mac[4], mac[5]);
+  }
+  */
+ /* String macStr;
+   macStr = String(network.MacArrayToString(network.GetESP32Macaddr(), 18));
+   Serial.println(macStr);
+*/
+   
+
    static bool connected =  connectToNetwork(); // connect to network and OTA
    
    delay(3000);
@@ -1248,7 +1263,8 @@ void setup()
    rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
 
 #endif
-   
+  
+
 }
 void loop()
 {
@@ -1274,7 +1290,8 @@ void loop()
       rgb.setBlinkingStatus(GREEN_COLOR_STATUS);
       
     }else {
-#ifdef testserver
+      #define testemeteurIR
+#ifdef testemeteurIR
 
         static unsigned long lastReadTime = 0;
         const uint16_t READ_INTERVAL = 1000; // ms
