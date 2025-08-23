@@ -885,7 +885,40 @@ void orderCallback(char *topic, byte *payload, unsigned int length)
     MyLogF(ERROR, "deserializeJson() failed: %s", error.c_str());
     return;
   }
+  JsonObject data = doc;
 
+  if (data.containsKey("wifi"))
+  {
+    WiFiConfig newConfig;
+    newConfig.ssid = data["wifi"]["ssid"].as<String>();
+    newConfig.password = data["wifi"]["password"].as<String>();
+
+    WiFiConfig currentConfig;
+    if (loadWiFiConfig(currentConfig))
+    {
+      if (currentConfig.ssid != newConfig.ssid || currentConfig.password != newConfig.password)
+      {
+        if (saveWiFiConfig(newConfig))
+        {
+          MyLog(INFO, "Updated WiFi config from server");
+          // Reconnect if we're using WiFi
+          if (!useEthernet)
+          {
+            network.configureWiFi(newConfig.ssid.c_str(), newConfig.password.c_str());
+            network.InitWifiModule();
+          }
+        }
+      }
+    }
+    else
+    {
+      // No existing config, save the new one
+      if (saveWiFiConfig(newConfig))
+      {
+        MyLog(INFO, "Saved new WiFi config from server");
+      }
+    }
+  }
   // Extract and log mode
   const char *mode = doc["mode"];
   if (!mode)
@@ -922,10 +955,9 @@ void orderCallback(char *topic, byte *payload, unsigned int length)
       }
     }
   }
-    // Update desired state using mode
-    desiredTVState = updateDesiredTVState(mode);
-    MyLogF(DEBUG, "Desired TV state set to: %d", desiredTVState);
-  
+  // Update desired state using mode
+  desiredTVState = updateDesiredTVState(mode);
+  MyLogF(DEBUG, "Desired TV state set to: %d", desiredTVState);
 }
 
 // Main callback router
@@ -1115,7 +1147,6 @@ void loop()
   if (btn.isLongPressed_5s())
   {
     MyLog(DEBUG, "BUtton PRESSD for more than 5s ....");
-
 
     /*MyLog(DEBUG, "Sending IR signal if tv off ...");
     while (!(irHandler.getTVStatus(1000) == TV_ON ))
