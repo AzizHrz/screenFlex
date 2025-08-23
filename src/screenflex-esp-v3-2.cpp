@@ -379,6 +379,7 @@ bool loadWiFiConfig(WiFiConfig &config)
     return false;
   }
 
+
   config.ssid = doc["ssid"].as<String>();
   config.password = doc["password"].as<String>();
   return true;
@@ -432,8 +433,17 @@ bool connectToNetwork()
     IPAddress ip SERVER_IP;
     network.setServerIp(ip);
     network.setSercerPort(SERVER_PORT);
+    WiFiConfig loadedwifiConfig;
+    if (loadWiFiConfig(loadedwifiConfig))
+    {
+      MyLogF(INFO, "Loaded WiFi config: SSID=%s", loadedwifiConfig.ssid.c_str());
+      network.configureWiFi(loadedwifiConfig.ssid.c_str(), loadedwifiConfig.password.c_str());
+    }
+    else
+    {
+      MyLogF(INFO, "Using hard code it WiFi config: SSID=%s", ssid);       
     network.configureWiFi(ssid, passwd);
-
+    }
     // network.InitWifiModule();
 
     // Initialize WiFi as both Access Point and Station==================
@@ -885,10 +895,10 @@ void orderCallback(char *topic, byte *payload, unsigned int length)
     MyLogF(ERROR, "deserializeJson() failed: %s", error.c_str());
     return;
   }
-  JsonObject data = doc;
+  JsonObject data = doc["wifi"];
 
-  if (data.containsKey("wifi"))
-  {
+  //if (data.containsKey("wifi"))
+  //{
     WiFiConfig newConfig;
     newConfig.ssid = data["wifi"]["ssid"].as<String>();
     newConfig.password = data["wifi"]["password"].as<String>();
@@ -908,6 +918,7 @@ void orderCallback(char *topic, byte *payload, unsigned int length)
             network.InitWifiModule();
           }
         }
+
       }
     }
     else
@@ -918,7 +929,7 @@ void orderCallback(char *topic, byte *payload, unsigned int length)
         MyLog(INFO, "Saved new WiFi config from server");
       }
     }
-  }
+  //}
   // Extract and log mode
   const char *mode = doc["mode"];
   if (!mode)
@@ -1041,7 +1052,9 @@ void setup()
   MyLog(INFO, "Initializing Network Module ... + delay 300ms");
   // Network.configureWiFi(ssid, passwd);
   // Network.InitWifiModule();
-  Serial.print(" ESP32 Board MAC Address: ");
+
+
+  //Serial.print(" ESP32 Board MAC Address: ");
   // ***i get and use the mac addresse in pingTokenServer()
   /*uint8_t* mac = network.GetESP32Macaddr();
 if (mac) {
