@@ -488,10 +488,11 @@ bool NetworkStack::OTA()
     {
         return false;
     }
-    const String newSoftV = GetFirmwareVersion();
-    if ( !( strcmp(newSoftV.c_str()  , TEST_SOFTWARE_VERSION) == 0 ) )
-    { // TODO enhance comaprison
-        MyLogF(INFO, "Detected a new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
+    //const String newSoftV = GetFirmwareVersion();
+    //if ( !( strcmp(newSoftV.c_str()  , TEST_SOFTWARE_VERSION) == 0 ) )
+    
+     // TODO enhance comaprison
+        //MyLogF(INFO, "Detected a new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
         MyLog(INFO, "Perfroming OTA, Dowloading Frimware now ...");
 #if (MyServ == 1)
         const String reqPath = "/update";
@@ -501,7 +502,7 @@ bool NetworkStack::OTA()
         int FirmwareSize = RequestOTA(reqPath);
         if (FirmwareSize < 0)
         {
-            // MyLogF(ERROR,"ERROR %d , Error Requesting OTA ...",FirmwareSize );
+             MyLogF(ERROR,"ERROR %d , Error Requesting OTA ...",FirmwareSize );
             return false;
         }else{
             int state = UpdateFirmware(FirmwareSize);
@@ -517,13 +518,12 @@ bool NetworkStack::OTA()
                 return true;
             }
         }
-    }
-    else
-    {
-        MyLogF(INFO, "No new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
-        MyLog(INFO, "Ignoring OTA.");
-        return false;
-    }
+    // }else
+    // {
+    //     MyLogF(INFO, "No new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
+    //     MyLog(INFO, "Ignoring OTA.");
+    //     return false;
+    // }
     }
     int NetworkStack::RequestOTA(const String &reqPath)
     {
