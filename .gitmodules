@@ -16,3 +16,9 @@
 [submodule "lib/RTClib"]
     path = lib/RTClib
     url = https://github.com/adafruit/RTClib.git    
+[submodule "lib/Rtc"]
+    path = lib/Rtc
+	url = https://github.com/Makuna/Rtc
+[submodule "lib/WakeOnLan"]
+    path = lib/WakeOnLan
+	url = https://github.com/a7md0/WakeOnLan.git
