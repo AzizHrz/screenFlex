@@ -1180,8 +1180,8 @@ void setup()
    Serial.println(macStr);
 */
    
-
-   static bool connected =  connectToNetwork(); // connect to network and OTA
+// connect to network and OTA
+   static bool connected =  connectToNetwork(); 
    
    delay(3000);
   
