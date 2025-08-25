@@ -25,7 +25,8 @@
 // MQTT updates =======================================================
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-const char *mqtt_server = "broker.hivemq.com";
+//const char *mqtt_server = "broker.hivemq.com";
+const char *mqtt_server = "ec2-15-237-105-154.eu-west-3.compute.amazonaws.com";
 const char *deviceId = "esp32-01"; // DEVICE ID
 
 WiFiClient espClient;
@@ -379,7 +380,6 @@ bool loadWiFiConfig(WiFiConfig &config)
     return false;
   }
 
-
   config.ssid = doc["ssid"].as<String>();
   config.password = doc["password"].as<String>();
   return true;
@@ -441,8 +441,8 @@ bool connectToNetwork()
     }
     else
     {
-      MyLogF(INFO, "Using hard code it WiFi config: SSID=%s", ssid);       
-    network.configureWiFi(ssid, passwd);
+      MyLogF(INFO, "Using hard code it WiFi config: SSID=%s", ssid);
+      network.configureWiFi(ssid, passwd);
     }
     // network.InitWifiModule();
 
@@ -897,38 +897,37 @@ void orderCallback(char *topic, byte *payload, unsigned int length)
   }
   JsonObject data = doc["wifi"];
 
-  //if (data.containsKey("wifi"))
+  // if (data.containsKey("wifi"))
   //{
-    WiFiConfig newConfig;
-    newConfig.ssid = data["wifi"]["ssid"].as<String>();
-    newConfig.password = data["wifi"]["password"].as<String>();
+  WiFiConfig newConfig;
+  newConfig.ssid = data["wifi"]["ssid"].as<String>();
+  newConfig.password = data["wifi"]["password"].as<String>();
 
-    WiFiConfig currentConfig;
-    if (loadWiFiConfig(currentConfig))
+  WiFiConfig currentConfig;
+  if (loadWiFiConfig(currentConfig))
+  {
+    if (currentConfig.ssid != newConfig.ssid || currentConfig.password != newConfig.password)
     {
-      if (currentConfig.ssid != newConfig.ssid || currentConfig.password != newConfig.password)
-      {
-        if (saveWiFiConfig(newConfig))
-        {
-          MyLog(INFO, "Updated WiFi config from server");
-          // Reconnect if we're using WiFi
-          if (!useEthernet)
-          {
-            network.configureWiFi(newConfig.ssid.c_str(), newConfig.password.c_str());
-            network.InitWifiModule();
-          }
-        }
-
-      }
-    }
-    else
-    {
-      // No existing config, save the new one
       if (saveWiFiConfig(newConfig))
       {
-        MyLog(INFO, "Saved new WiFi config from server");
+        MyLog(INFO, "Updated WiFi config from server");
+        // Reconnect if we're using WiFi
+        if (!useEthernet)
+        {
+          network.configureWiFi(newConfig.ssid.c_str(), newConfig.password.c_str());
+          network.InitWifiModule();
+        }
       }
     }
+  }
+  else
+  {
+    // No existing config, save the new one
+    if (saveWiFiConfig(newConfig))
+    {
+      MyLog(INFO, "Saved new WiFi config from server");
+    }
+  }
   //}
   // Extract and log mode
   const char *mode = doc["mode"];
@@ -1053,9 +1052,8 @@ void setup()
   // Network.configureWiFi(ssid, passwd);
   // Network.InitWifiModule();
 
-
-  //Serial.print(" ESP32 Board MAC Address: ");
-  // ***i get and use the mac addresse in pingTokenServer()
+  // Serial.print(" ESP32 Board MAC Address: ");
+  //  ***i get and use the mac addresse in pingTokenServer()
   /*uint8_t* mac = network.GetESP32Macaddr();
 if (mac) {
 Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -1160,6 +1158,16 @@ void loop()
   if (btn.isLongPressed_5s())
   {
     MyLog(DEBUG, "BUtton PRESSD for more than 5s ....");
+    // refrechIRdata();
+    rgb.setBlinkingStatus(WHITE_COLOR_STATUS);
+    // clearr the json file that holds the IR data
+    irHandler.clear_file(f);
+    rgb.setBlinkingStatus(VIOLET_COLOR_STATUS);
+
+    // restart the ESP
+    MyLog(INFO, "Restarting ESP to re-scan IR data ...");
+    delay(2000);
+    ESP.restart();
 
     /*MyLog(DEBUG, "Sending IR signal if tv off ...");
     while (!(irHandler.getTVStatus(1000) == TV_ON ))

@@ -342,7 +342,9 @@ const String NetworkStack::GetFirmwareVersion()
     String response = HTTPGET("/version");
     Serial.println(response);
 #else
+    //String response = HTTPGET("/api/v1/screenflex/box/version");
     String response = HTTPGET("/api/v1/screenflex/box/version");
+
 #endif
     // TODO: Check if response is empty
     StaticJsonDocument<96> doc;
