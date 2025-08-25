@@ -343,7 +343,9 @@ const String NetworkStack::GetFirmwareVersion()
     Serial.println(response);
 #else
     //String response = HTTPGET("/api/v1/screenflex/box/version");
-    String response = HTTPGET("/api/v1/screenflex/box/version");
+    //String response = HTTPGET("/api/v1/screenflex/box/version");
+    String response = HTTPGET("/version");
+
 
 #endif
     // TODO: Check if response is empty
@@ -499,7 +501,9 @@ bool NetworkStack::OTA()
 #if (MyServ == 1)
         const String reqPath = "/update";
 #else
-        const String reqPath = "/screenflex/firmware.bin";
+        //const String reqPath = "/screenflex/firmware.bin";
+        const String reqPath = "/update";
+
 #endif
         int FirmwareSize = RequestOTA(reqPath);
         if (FirmwareSize < 0)
