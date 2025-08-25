@@ -26,7 +26,10 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 //const char *mqtt_server = "broker.hivemq.com";
-const char *mqtt_server = "ec2-15-237-105-154.eu-west-3.compute.amazonaws.com";
+
+
+const char *mqtt_server = "ec2-13-36-253-13.eu-west-3.compute.amazonaws.com";
+
 const char *deviceId = "esp32-01"; // DEVICE ID
 
 WiFiClient espClient;
@@ -434,20 +437,29 @@ bool connectToNetwork()
     network.setServerIp(ip);
     network.setSercerPort(SERVER_PORT);
     WiFiConfig loadedwifiConfig;
-    if (loadWiFiConfig(loadedwifiConfig))
+    /*if (loadWiFiConfig(loadedwifiConfig))
     {
       MyLogF(INFO, "Loaded WiFi config: SSID=%s", loadedwifiConfig.ssid.c_str());
       network.configureWiFi(loadedwifiConfig.ssid.c_str(), loadedwifiConfig.password.c_str());
+    network.InitWifiModule();
+
     }
-    else
+    */
+    /*if(WiFi.status() != WL_CONNECTED)
     {
+    
       MyLogF(INFO, "Using hard code it WiFi config: SSID=%s", ssid);
       network.configureWiFi(ssid, passwd);
+    network.InitWifiModule();
+
     }
-    // network.InitWifiModule();
+*/
+    
+    if(WiFi.status() != WL_CONNECTED){
 
     // Initialize WiFi as both Access Point and Station==================
     initWiFiAPSTA(); // Setup WiFi & web server
+
     while (WiFi.status() != WL_CONNECTED)
     {
       handleWiFiServer(); // Handle client input from /connect
@@ -458,7 +470,7 @@ bool connectToNetwork()
     Serial.println("ESP32 connected as STATION");
     WiFi.softAPdisconnect(true); // Turn off AP
     Serial.println("Access Point disabled");
-
+  }
     // Optional: show IP or do other setup tasks here
     Serial.println("IP Address: " + WiFi.localIP().toString());
     //================================================================
@@ -895,13 +907,13 @@ void orderCallback(char *topic, byte *payload, unsigned int length)
     MyLogF(ERROR, "deserializeJson() failed: %s", error.c_str());
     return;
   }
-  JsonObject data = doc["wifi"];
+  
 
   // if (data.containsKey("wifi"))
   //{
   WiFiConfig newConfig;
-  newConfig.ssid = data["wifi"]["ssid"].as<String>();
-  newConfig.password = data["wifi"]["password"].as<String>();
+  newConfig.ssid = doc["wifi"][0].as<String>();
+  newConfig.password = doc["wifi"][1].as<String>();
 
   WiFiConfig currentConfig;
   if (loadWiFiConfig(currentConfig))
@@ -1005,10 +1017,13 @@ void callback(char *topic, byte *payload, unsigned int length)
 
 void reconnect()
 {
+  MyLog(INFO, "Attempting MQTT connection...");
   while (!client.connected())
   {
     client.connect("esp32-client");
+    Serial.print(".");
   }
+  MyLog(INFO, "MQTT connected");
   client.subscribe(orderTopic.c_str()); // Subscribe to new topic
 }
 
@@ -1072,9 +1087,10 @@ Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
   delay(3000);
 
   rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
-  String token = network.pingTokenServer(); ///////////////////////////////////////////////////////
   MyLog(INFO, "ping token server ...");
-  String user = network.getUserFromServer();
+  String token = network.pingTokenServer(); ///////////////////////////////////////////////////////
+
+  String user = network.getUserFromServer(token);
   MyLogF(INFO, "User from server: %s", user.c_str());
 
   // mqtt setup =================================================
@@ -1203,7 +1219,7 @@ void loop()
       case 0: // TV_OFF
         currentTVState = TV_OFF;
         MyLog(INFO, "TV is currently OFF");
-        if (desiredTVState != currentTVState)
+        if (desiredTVState == TV_ON)
         {
           MyLog(INFO, "currentTVSTtae differs for desired state");
           changeTVState();
@@ -1213,7 +1229,7 @@ void loop()
         currentTVState = TV_ON;
         MyLog(INFO, "TV is currently ON");
         // MyLogF(INFO, "currentTVState : %s | desiredTVState %s", toString(currentTVState), toString(desiredTVState));
-        if (desiredTVState != currentTVState)
+        if (desiredTVState == TV_OFF)
         {
           MyLog(INFO, "currentTVSTtae differs for desired state");
 

@@ -27,7 +27,7 @@ class NetworkStack
 {
 public:
     const String  pingTokenServer();
-    const String getUserFromServer();
+    const String getUserFromServer(const String &token);
     uint8_t* GetESP32Macaddr();
 
 
