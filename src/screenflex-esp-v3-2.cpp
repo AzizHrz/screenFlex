@@ -25,8 +25,7 @@
 // MQTT updates =======================================================
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-//const char *mqtt_server = "broker.hivemq.com";
-
+// const char *mqtt_server = "broker.hivemq.com";
 
 const char *mqtt_server = "ec2-13-36-253-13.eu-west-3.compute.amazonaws.com";
 
@@ -45,7 +44,10 @@ String firmwareTopic;
 //========================================================
 
 // ESP32-WEB-SERVER ========================================================
-#include "ESP32_AP_STA.h"
+// #include "ESP32_AP_STA.h"
+// ESP32-WEB-SERVER ========================================================
+#include "OOP_ESP32_AP_STA.h"
+OOP_ESP32_AP_STA wifiESPManager;
 
 //========================================================================
 
@@ -421,7 +423,8 @@ void checkAndUpdateFirmware()
     MyLog(INFO, "Ignoring OTA.");
   }
 }
-
+static String user;
+static String token = "";
 bool connectToNetwork()
 {
   // network.InitEthernetModule(W5500_CS);
@@ -437,40 +440,75 @@ bool connectToNetwork()
     network.setServerIp(ip);
     network.setSercerPort(SERVER_PORT);
     WiFiConfig loadedwifiConfig;
-    /*if (loadWiFiConfig(loadedwifiConfig))
+    if (loadWiFiConfig(loadedwifiConfig) )
     {
-      MyLogF(INFO, "Loaded WiFi config: SSID=%s", loadedwifiConfig.ssid.c_str());
-      network.configureWiFi(loadedwifiConfig.ssid.c_str(), loadedwifiConfig.password.c_str());
+      String ssid_loaded = loadedwifiConfig.ssid;
+      MyLogF(INFO, "Loaded WiFi config: SSID= %s", ssid_loaded);
+      if(ssid_loaded != nullptr && ssid_loaded != "" && ssid_loaded != "null"){
+         network.configureWiFi(loadedwifiConfig.ssid.c_str(), loadedwifiConfig.password.c_str());
     network.InitWifiModule();
+      }
+     
 
     }
-    */
+    
     /*if(WiFi.status() != WL_CONNECTED)
     {
-    
+
       MyLogF(INFO, "Using hard code it WiFi config: SSID=%s", ssid);
       network.configureWiFi(ssid, passwd);
     network.InitWifiModule();
 
     }
 */
-    
-    if(WiFi.status() != WL_CONNECTED){
 
-    // Initialize WiFi as both Access Point and Station==================
-    initWiFiAPSTA(); // Setup WiFi & web server
-
-    while (WiFi.status() != WL_CONNECTED)
+    if (WiFi.status() != WL_CONNECTED)
     {
-      handleWiFiServer(); // Handle client input from /connect
-      delay(10);          // Small delay to prevent watchdog reset
-    }
 
-    // Connected successfully
-    Serial.println("ESP32 connected as STATION");
-    WiFi.softAPdisconnect(true); // Turn off AP
-    Serial.println("Access Point disabled");
-  }
+      // Initialize WiFi as both Access Point and Station==================
+      // initWiFiAPSTA(); // Setup WiFi & web server
+      wifiESPManager.init();
+      Serial.println("ESP32 AP+STA Server Started");
+      Serial.println("Connect to AP: ESP32_AP with password: 12345678");
+      Serial.println("Then navigate to http://192.168.4.1");
+
+      String tokenGeted = "Unknown";
+
+      do
+      {
+        // loopWifiServer();
+        wifiESPManager.handleClient();
+        //=============================
+        if (WiFi.status() == WL_CONNECTED && token == "")
+        {
+          rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
+          MyLog(INFO, "ping connectToNetworktoken server ...");
+          token = network.pingTokenServer();
+          MyLogF(INFO, "token from screenFlex server: %s", token.c_str());
+
+          user = network.getUserFromServer(token);
+          MyLogF(INFO, "User from screenFlex server: %s", user.c_str());
+        }
+
+        //=============================
+        wifiESPManager.setToken("new_token_" + token);
+        wifiESPManager.setUser("user_" + String(millis()));
+        tokenGeted = wifiESPManager.getTokenGeted();
+        if (tokenGeted != "")
+        {
+          MyLogF(INFO, "tokengeted from ESP server: %s", tokenGeted.c_str());
+        }
+
+        delay(10); // Small delay to prevent watchdog reset
+        Serial.print(".");
+      } while (tokenGeted != "done");
+      MyLogF(INFO, "tokengeted from ESP server: %s", tokenGeted.c_str());
+
+      // Connected successfully
+      Serial.println("ESP32 connected as STATION");
+      // WiFi.softAPdisconnect(true); // Turn off AP
+      // Serial.println("Access Point disabled");
+    }
     // Optional: show IP or do other setup tasks here
     Serial.println("IP Address: " + WiFi.localIP().toString());
     //================================================================
@@ -907,7 +945,6 @@ void orderCallback(char *topic, byte *payload, unsigned int length)
     MyLogF(ERROR, "deserializeJson() failed: %s", error.c_str());
     return;
   }
-  
 
   // if (data.containsKey("wifi"))
   //{
@@ -1086,12 +1123,17 @@ Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
 
   delay(3000);
 
-  rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
-  MyLog(INFO, "ping token server ...");
-  String token = network.pingTokenServer(); ///////////////////////////////////////////////////////
+  // rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
+  // MyLog(INFO, "ping connectToNetworktoken server ...");
+  // String token = network.pingTokenServer(); ///////////////////////////////////////////////////////
 
-  String user = network.getUserFromServer(token);
-  MyLogF(INFO, "User from server: %s", user.c_str());
+  // String user = network.getUserFromServer(token);
+  // MyLogF(INFO, "User from server: %s", user.c_str());
+
+  delay(3000);
+  // Stop AP
+  WiFi.softAPdisconnect(true); // Turn off AP
+  Serial.println("Access Point disabled");
 
   // mqtt setup =================================================
   // setup_wifi(); // same as InitWifiModule in connectToNetwork()
