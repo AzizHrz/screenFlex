@@ -440,7 +440,7 @@ bool connectToNetwork()
     network.setServerIp(ip);
     network.setSercerPort(SERVER_PORT);
     WiFiConfig loadedwifiConfig;
-    if (loadWiFiConfig(loadedwifiConfig) )
+    /*if (loadWiFiConfig(loadedwifiConfig) )
     {
       String ssid_loaded = loadedwifiConfig.ssid;
       MyLogF(INFO, "Loaded WiFi config: SSID= %s", ssid_loaded);
@@ -448,9 +448,8 @@ bool connectToNetwork()
          network.configureWiFi(loadedwifiConfig.ssid.c_str(), loadedwifiConfig.password.c_str());
     network.InitWifiModule();
       }
-     
-
     }
+    */
     
     /*if(WiFi.status() != WL_CONNECTED)
     {
@@ -491,8 +490,8 @@ bool connectToNetwork()
         }
 
         //=============================
-        wifiESPManager.setToken("new_token_" + token);
-        wifiESPManager.setUser("user_" + String(millis()));
+        wifiESPManager.setToken(token);
+        wifiESPManager.setUser("user_" + user);
         tokenGeted = wifiESPManager.getTokenGeted();
         if (tokenGeted != "")
         {
@@ -1088,8 +1087,7 @@ void setup()
   {
     // Serial.println("Failed to initialize RTC");
     MyLog(INFO, "Failed to initialize RTC");
-    while (1)
-      ;
+    while (1);
   }
 
   // by aziz
@@ -1121,7 +1119,7 @@ Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
   // connect to network and OTA
   static bool connected = connectToNetwork();
 
-  delay(3000);
+ 
 
   // rgb.setBlinkingStatus(BLUE_COLOR_STATUS);
   // MyLog(INFO, "ping connectToNetworktoken server ...");
@@ -1259,16 +1257,16 @@ void loop()
       switch (irHandler.getTVStatus(1000))
       {
       case 0: // TV_OFF
-        currentTVState = TV_OFF;
         MyLog(INFO, "TV is currently OFF");
         if (desiredTVState == TV_ON)
         {
           MyLog(INFO, "currentTVSTtae differs for desired state");
           changeTVState();
         }
+        currentTVState = TV_OFF;
+
         break;
       case 1: // TV_ON
-        currentTVState = TV_ON;
         MyLog(INFO, "TV is currently ON");
         // MyLogF(INFO, "currentTVState : %s | desiredTVState %s", toString(currentTVState), toString(desiredTVState));
         if (desiredTVState == TV_OFF)
@@ -1277,6 +1275,8 @@ void loop()
 
           changeTVState();
         }
+        currentTVState = TV_ON;
+
         break;
       case 2: // TV_TRANSITIONING
         currentTVState = TV_TRANSITIONING;
