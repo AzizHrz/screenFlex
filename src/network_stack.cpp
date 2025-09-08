@@ -4,19 +4,17 @@
 #include "schedule.h"
 #include <esp_wifi.h>
 
-
-
 NetworkStack::NetworkStack() : MyMacAddr{0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}
 {
-    WoLRepetion=10 ;
+    WoLRepetion = 10;
 }
 void NetworkStack::configureWiFi(const char *ssid = "", const char *passwd = "")
 {
-    #if ( OTA_WIFI_ETH == 1   )
+#if (OTA_WIFI_ETH == 1)
     this->ssid = ssid;
     this->passwd = passwd;
-    #endif
-    }
+#endif
+}
 
 void NetworkStack::configureOTA(bool enable)
 {
@@ -31,14 +29,16 @@ void NetworkStack::configureOTA(bool enable)
         MyLog(INFO, "Rollback Disabled");
     }
 }
-const char* NetworkStack::MacArrayToString(const uint8_t* arr, size_t _sizeMacString) {
+const char *NetworkStack::MacArrayToString(const uint8_t *arr, size_t _sizeMacString)
+{
     static char macString[18]; // 6*2 hex + 5 colons + null terminator = 18
     snprintf(macString, _sizeMacString, "%02X:%02X:%02X:%02X:%02X:%02X",
              arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]);
     return macString;
 }
 
-void NetworkStack::InitWifiModule(){ 
+void NetworkStack::InitWifiModule()
+{
 #if (ENABLE_WIFI == 1)
     /*
     We are Enabling the WiFi module for server communication,
@@ -65,14 +65,14 @@ void NetworkStack::InitWifiModule(){
 #endif
 }
 /* // old init ethernet module version
-void NetworkStack::InitEthernetModule(uint8_t cs_pin){ 
+void NetworkStack::InitEthernetModule(uint8_t cs_pin){
     #if (ENABLE_ETHERNET == 0)
     MyLog(INFO, "Ethernet Module is Disabled");
-        
+
 
        // This macro is only for testing purposes when we don't need to test the WoL
         //to speed up the testing process
-    
+
     return;
 #else
     MyLog(INFO, "Enabling the Ethernet Module");
@@ -131,17 +131,18 @@ void NetworkStack::InitEthernetModule(uint8_t cs_pin){
 
 */
 // New version of InitEthernetModule
-bool NetworkStack::InitEthernetModule(uint8_t cs_pin){ 
+bool NetworkStack::InitEthernetModule(uint8_t cs_pin)
+{
 #if (ENABLE_ETHERNET == 0)
     MyLog(INFO, "Ethernet Module is Disabled");
-    /*    
+    /*
 
         This macro is only for testing purposes when we don't need to test the WoL
         to speed up the testing process
     */
     return false;
 #else
-     
+
     MyLog(INFO, "Enabling the Ethernet Module");
 
     Ethernet.init(cs_pin);
@@ -161,12 +162,11 @@ bool NetworkStack::InitEthernetModule(uint8_t cs_pin){
     while (st != LinkON && attemptCount < 5 && millis() - lastAttemptTime > 20)
     {
         // Retry every 20 milliseconds
-            lastAttemptTime = millis();
-            attemptCount++;
-            Serial.print(".");
-            Serial.flush();
-        
-        
+        lastAttemptTime = millis();
+        attemptCount++;
+        Serial.print(".");
+        Serial.flush();
+
         st = Ethernet.linkStatus();
         switch (st)
         {
@@ -188,15 +188,14 @@ bool NetworkStack::InitEthernetModule(uint8_t cs_pin){
     {
         MyLog(ERROR, "Failed to establish Ethernet link after multiple attempts.");
         return false; // Return false if link could not be established
-    }else
+    }
+    else
     {
         MyLog(INFO, "Ethernet link established successfully.");
         delay(1000);
         Serial.println("Ethernet initialized");
         return true; // Return true if link was established successfully
     }
-
-    
 
     // LocalIP = WiFi.localIP();
 #endif
@@ -211,20 +210,18 @@ for both WoL and server communication.
 #endif
 }
 
-
 uint8_t *NetworkStack::GetMacaddr()
 {
 
     return MyMacAddr;
 }
-//by aziz 
-uint8_t* NetworkStack::GetESP32Macaddr()
+// by aziz
+uint8_t *NetworkStack::GetESP32Macaddr()
 {
     static uint8_t mac[6];
     esp_wifi_get_mac(WIFI_IF_STA, mac);
     return mac;
 }
-
 
 String NetworkStack::HTTPGET(const String &reqPath)
 {
@@ -335,17 +332,20 @@ void NetworkStack::WakeOnLan(const uint8_t TargetMac[], int repetition = 6)
 
 const String NetworkStack::GetFirmwareVersion()
 {
-   // MyLogF(INFO, "Requsting Firmware version form Server %s", serverIP.toString());
+    // MyLogF(INFO, "Requsting Firmware version form Server %s", serverIP.toString());
     MyLogF(INFO, "Requsting Firmware version form Server %s", GetServerIP().toString());
 
 #if (MyServ == 1)
     String response = HTTPGET("/version");
     Serial.println(response);
 #else
-    String response = HTTPGET("/api/v1/screenflex/box/version");
+    // String response = HTTPGET("/api/v1/screenflex/box/version");
+    // String response = HTTPGET("/api/v1/screenflex/box/version");
+    String response = HTTPGET("/api/devices/esp/version");
+
 #endif
     // TODO: Check if response is empty
-    StaticJsonDocument<96> doc;
+    StaticJsonDocument<256> doc;
 
     DeserializationError error = deserializeJson(doc, response);
 
@@ -358,50 +358,60 @@ const String NetworkStack::GetFirmwareVersion()
     bool success = doc["success"]; // true
     if (success == true)
     {
-        const String softv = doc["data"]["version"].as<String>(); // "1.0.0"
+        const String softv = doc["version"].as<String>(); // "1.0.0"
         return softv;
     }
     else
         return "";
 }
 
-const String NetworkStack::getUserFromServer()
+const String NetworkStack::getUserFromServer(const String &token)
 {
-   // MyLogF(INFO, "Requsting Firmware version form Server %s", serverIP.toString());
+    // MyLogF(INFO, "Requsting Firmware version form Server %s", serverIP.toString());
     MyLogF(INFO, "Requsting Status & User form Server %s", GetServerIP().toString());
 
 #if (MyServ == 1)
     String response = HTTPGET("/api/devices/status/02347789");
     Serial.println(response);
 #else
-    String response = HTTPGET("/api/v1/screenflex/box/version");
+    // String response = HTTPGET("/api/v1/screenflex/box/version");
+    String url = "/api/devices/status/" + token;
+    MyLogF(INFO, "Using URL: %s", url.c_str());
 #endif
-    // TODO: Check if response is empty
-    StaticJsonDocument<96> doc;
-
-    DeserializationError error = deserializeJson(doc, response);
-
-    if (error)
+    String user = "";
+    do
     {
-        MyLogF(ERROR, "deserializeJson() GetUserFromServer() failed: %s", error.f_str());
-        return "";
-    }
+        String response = HTTPGET(url);
+        MyLogF(INFO, "Response: %s", response.c_str());
+        // TODO: Check if response is empty
+        StaticJsonDocument<256> doc;
 
-    bool success = doc["success"]; // true
-    String status = doc["status"].as<String>();
-    if (success == true && status == "active")
-    {
-        const String user = doc["user"].as<String>(); // "1.0.0"
-        return user;
-    }
-    else
-        return "";
+        DeserializationError error = deserializeJson(doc, response);
+
+        if (error)
+        {
+            MyLogF(ERROR, "deserializeJson() GetUserFromServer() failed: %s", error.f_str());
+            return "";
+        }
+
+        bool success = doc["success"]; // true
+        String status = doc["status"].as<String>();
+        if (success == true && status == "active")
+        {
+            user = doc["user"].as<String>(); // "1.0.0"
+        }
+        delay(2000); // wait 2 seconds before retrying
+
+    } while (user.length() == 0);
+
+    return user;
 }
 
-const String NetworkStack::pingTokenServer() {
+const String NetworkStack::pingTokenServer()
+{
     // Build JSON payload
     DynamicJsonDocument doc(1024);
-    //doc["machineid"] = "MAC";
+    // doc["machineid"] = "MAC";
     doc["machineid"] = String(MacArrayToString(GetESP32Macaddr(), 18));
     doc["os"] = "esp32";
 
@@ -411,49 +421,60 @@ const String NetworkStack::pingTokenServer() {
     // Make HTTP POST call using custom method
     String response = HTTPPOST("/api/devices/register", "application/json", payload);
 
-    if (response.length() == 0) {
+    if (response.length() == 0)
+    {
         MyLog(ERROR, "Empty response or connection failed.");
         return "false";
     }
 
     // Debug the raw response (optional)
-    Serial.println("Raw Response:");
-    Serial.println(response);
-    
+    MyLog(DEBUG, "ping token:");
+    MyLogF(INFO, "Response from server: %s", response.c_str());
 
-    
     DynamicJsonDocument resDoc(1024);
     DeserializationError error = deserializeJson(resDoc, response);
 
-    if (error) {
+    if (error)
+    {
         MyLogF(ERROR, "JSON parsing failed: %s", error.c_str());
         return "false";
     }
 
-    if (resDoc["success"]) {
+    if (resDoc["success"])
+    {
         String status = resDoc["status"].as<String>();
         String token = resDoc["token"].as<String>();
 
         MyLogF(INFO, "token: %s", token.c_str());
         MyLogF(INFO, "Status: %s", status.c_str());
 
-        if (status == "active") {
+        if (status == "active")
+        {
             MyLog(INFO, "Access granted. Status is ACTIVE.");
-        } else if (status == "pending") {
+        }
+        else if (status == "pending")
+        {
             MyLog(ERROR, "Access is still pending.");
-        } else if (status == "revoked") {
+        }
+        else if (status == "revoked")
+        {
             MyLog(ERROR, "Access has been revoked.");
-        } else {
+        }
+        else
+        {
             MyLog(ERROR, "Unknown status received.");
         }
 
         return token; // Return the token
-    } else {
+    }
+    else
+    {
         MyLog(ERROR, "Server responded with success=false.");
         return "false"; // Indicate failure
     }
 }
-const String NetworkStack::GetSchedule_HTTP(){ 
+const String NetworkStack::GetSchedule_HTTP()
+{
 
     MyLogF(INFO, "Requsting Firmware version form Server %s", GetServerIP().toString());
 #if (MyServ == 1)
@@ -472,7 +493,7 @@ const String NetworkStack::GetSchedule_HTTP(){
     //     MyLogF(ERROR, "deserializeJson() failed: %s", error.f_str());
     //     return "";
     // }
-    return response ; 
+    return response;
     // bool success = doc["success"]; // true
     // if (success == true)
     // {
@@ -481,100 +502,110 @@ const String NetworkStack::GetSchedule_HTTP(){
     // }
     // else
     //     return "";
-} 
+}
 bool NetworkStack::OTA()
 {
     if (!isOTAEnabled)
     {
         return false;
     }
-    const String newSoftV = GetFirmwareVersion();
-    if ( !( strcmp(newSoftV.c_str()  , TEST_SOFTWARE_VERSION) == 0 ) )
-    { // TODO enhance comaprison
-        MyLogF(INFO, "Detected a new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
-        MyLog(INFO, "Perfroming OTA, Dowloading Frimware now ...");
+    // const String newSoftV = GetFirmwareVersion();
+    // if ( !( strcmp(newSoftV.c_str()  , TEST_SOFTWARE_VERSION) == 0 ) )
+
+    // TODO enhance comaprison
+    // MyLogF(INFO, "Detected a new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
+    MyLog(INFO, "Perfroming OTA, Dowloading Frimware now ...");
 #if (MyServ == 1)
-        const String reqPath = "/update";
+    const String reqPath = "/update";
 #else
-        const String reqPath = "/screenflex/firmware.bin";
+    // const String reqPath = "/screenflex/firmware.bin";
+    const String reqPath = "/api/devices/esp/update";
+
 #endif
-        int FirmwareSize = RequestOTA(reqPath);
-        if (FirmwareSize < 0)
+    int FirmwareSize = RequestOTA(reqPath);
+    if (FirmwareSize < 0)
+    {
+        MyLogF(ERROR, "ERROR %d , Error Requesting OTA ...", FirmwareSize);
+        return false;
+    }
+    else
+    {
+        int state = UpdateFirmware(FirmwareSize);
+        if (state < 0)
         {
-            // MyLogF(ERROR,"ERROR %d , Error Requesting OTA ...",FirmwareSize );
             return false;
-        }else{
-            int state = UpdateFirmware(FirmwareSize);
-            if (state < 0){
-                return false;
-            }else{
-                MyLog(INFO, "Ready to update, just restart ...");
-                if (Update.canRollBack()){
-                    MyLog(INFO, "Rollback enabled ");
-                }else{
-                    MyLog(ERROR, "enabled To enable rollback ");
-                }
-                return true;
+        }
+        else
+        {
+            MyLog(INFO, "Ready to update, just restart ...");
+            if (Update.canRollBack())
+            {
+                MyLog(INFO, "Rollback enabled ");
             }
+            else
+            {
+                MyLog(ERROR, "enabled To enable rollback ");
+            }
+            return true;
+        }
+    }
+    // }else
+    // {
+    //     MyLogF(INFO, "No new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
+    //     MyLog(INFO, "Ignoring OTA.");
+    //     return false;
+    // }
+}
+int NetworkStack::RequestOTA(const String &reqPath)
+{
+    // TODO: ADD MD5 Check
+
+    // Connect to the server
+    if (client.connect(serverIP, ServerPort))
+    {
+        Serial.println("Connected to OTA server");
+
+        // Send HTTP GET request
+        client.println("GET " + reqPath + " HTTP/1.1");
+        client.println("Host: 203.161.60.31");
+        client.println("Connection: close");
+        client.println();
+
+        // Wait for the server response
+        int contentLength = -1;
+        while (client.connected())
+        {
+            String line = client.readStringUntil('\n');
+            Serial.println(line);
+            if (line.startsWith("Content-Length:"))
+            {
+                contentLength = line.substring(15).toInt();
+            }
+            if (line == "\r")
+            {
+                MyLog(DEBUG, "Finished  receiving Headers");
+                break; // End of headers
+            }
+        }
+
+        if (contentLength <= 0)
+        {
+            MyLog(ERROR, "Invalid content length. OTA update aborted.");
+            client.stop();
+            return -1;
+        }
+        else
+        {
+            return contentLength;
         }
     }
     else
     {
-        MyLogF(INFO, "No new version from sevrer %s with version %s", GetServerIP().toString(), newSoftV);
-        MyLog(INFO, "Ignoring OTA.");
-        return false;
+        MyLogF(ERROR, "Unable to connect to Server: %s, port %d", serverIP.toString(), ServerPort);
+        client.stop();
+        return -2;
     }
-    }
-    int NetworkStack::RequestOTA(const String &reqPath)
-    {
-        // TODO: ADD MD5 Check
-
-        // Connect to the server
-        if (client.connect(serverIP, ServerPort))
-        {
-            Serial.println("Connected to OTA server");
-
-            // Send HTTP GET request
-            client.println("GET " + reqPath + " HTTP/1.1");
-            client.println("Host: 203.161.60.31");
-            client.println("Connection: close");
-            client.println();
-
-            // Wait for the server response
-            int contentLength = -1;
-            while (client.connected())
-            {
-                String line = client.readStringUntil('\n');
-                Serial.println(line);
-                if (line.startsWith("Content-Length:"))
-                {
-                    contentLength = line.substring(15).toInt();
-                }
-                if (line == "\r")
-                {
-                    MyLog(DEBUG, "Finished  receiving Headers");
-                    break; // End of headers
-                }
-            }
-
-            if (contentLength <= 0)
-            {
-                MyLog(ERROR, "Invalid content length. OTA update aborted.");
-                client.stop();
-                return -1;
-            }
-            else
-            {
-                return contentLength;
-            }
-        }
-        else
-        {
-            MyLogF(ERROR, "Unable to connect to Server: %s, port %d", serverIP.toString(), ServerPort);
-            client.stop();
-            return -2;
-        }
-    }
+}
 int NetworkStack::UpdateFirmware(int FirmwareSize)
 {
     MyLogF(DEBUG, "New Firmware size %d", FirmwareSize);

@@ -11,6 +11,9 @@ void initWiFiAPSTA();     // Setup AP+STA and WebServer
 void handleRoot();        // HTML form
 void handleConnect();     // Handle WiFi connection
 void handleStatus();      // Display connection result
+void handleTokenUser() ; // Display token and user
 void handleWiFiServer();
+void processWiFiConnection() ;
+void loopWifiServer() ;
 
 #endif
