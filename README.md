@@ -15,6 +15,31 @@ ScreenFlex Starter is ESP32 firmware for a display controller. It connects to th
 - Firmware version checks and OTA update support
 - RGB status indication
 
+## Architecture
+
+```mermaid
+flowchart LR
+    User[User or ScreenFlex service] -->|Control orders and schedule| Broker[MQTT broker]
+    ESP[ESP32 controller] <-->|MQTT: orders, state, firmware| Broker
+
+    subgraph Device[ScreenFlex display controller]
+        ESP --> Net[Network connection]
+        Net -->|Ethernet| W5500[W5500 module]
+        Net -->|Wi-Fi setup| Portal[ESP32 setup portal]
+        ESP -->|Read / save IR commands| FS[LittleFS storage]
+        ESP -->|Send IR commands| IR[IR emitter]
+        TV[Television] -->|Power-state signal| ESP
+        IR --> TV
+        RTC[Real-time clock] -->|Current time| ESP
+        ESP --> LED[RGB status LED]
+        Button[Setup button] --> ESP
+    end
+
+    ESP -->|Optional firmware update| OTA[Update service]
+```
+
+The ESP32 receives commands or schedule settings over MQTT, evaluates schedules using the RTC, and compares the requested TV state with the state input. When a change is needed, it sends the corresponding saved infrared command. LittleFS stores IR data locally; the button supports device interaction and setup. Network connectivity can use Ethernet or Wi-Fi provisioning.
+
 ## Hardware
 
 The firmware targets an ESP32 DevKit-compatible board. Pin assignments are defined in `include/Hardware.h` and the main application source; verify them against your exact hardware before wiring.
