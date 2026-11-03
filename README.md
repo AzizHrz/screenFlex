@@ -1,164 +1,149 @@
-# Starter : 
+# ScreenFlex Starter
 
-<div style="display: flex; justify-content: center;">
-  <img src="Images/Starter.png" alt="Image 2" style="width: 45%;"/>
-</div>
+ScreenFlex Starter is ESP32 firmware for a display controller. It connects to the ScreenFlex service, receives control messages over MQTT, controls a TV using infrared, and evaluates a weekly schedule using the real-time clock.
 
-## Description:
-**starter**: is a smart automation system designed for publicity stations.
+## Features
 
-The system ensures seamless startup  of a marketing stand by automating the following processes:
+- TV control using stored infrared commands
+- TV state detection from a hardware input
+- MQTT control modes: `on`, `off`, and `schedule`
+- Weekly schedule evaluation using the RTC
+- Ethernet support through a W5500 module
+- Wi-Fi provisioning through an ESP32 access point and setup portal
+- Device registration with the ScreenFlex service
+- LittleFS-based local data storage
+- Firmware version checks and OTA update support
+- RGB status indication
 
-- **TV Control** via IR: Automatically powers on the TV to begin displaying content without user intervention (Remote control).
-- **PC Wake-Up** via Ethernet (Wake-on-LAN): Wakes the connected PC to run the publicity application as soon as power is restored.
-- **Over the Air updates**: supports OTA via ( Ethernet and WiFi) with the abilty to rollback the update fails. 
+## Hardware
 
----
+The firmware targets an ESP32 DevKit-compatible board. Pin assignments are defined in `include/Hardware.h` and the main application source; verify them against your exact hardware before wiring.
 
-## Availalable Verisions: 
+| Component | Purpose |
+|---|---|
+| ESP32 DevKit | Main controller |
+| W5500 Ethernet module | Wired network connectivity |
+| IR receiver and emitter | Capture and send TV commands |
+| TV status input | Detect TV state |
+| RTC module | Time and date for scheduling |
+| RGB LED | Device status indication |
+| Button | Device interaction and reset functions |
 
-`version_1`: first version conatins basic fucntionalities (Wol and IR control)
+## Getting started
 
-`version_1.1.0`:  we redesigned the IR interface to be universal (supports NEC, SAMSUNG, LG, PulseDistance Protocoles)
+### Requirements
 
-`version_1.1.1`:  we intergrate OTA functionalties and redsign of the other modules. we also supports rollback if the updated  firmware is corrupted.   
+- PlatformIO Core or the PlatformIO IDE
+- ESP32 DevKit-compatible board and USB connection
 
----
-
-## Architecture & design 
-### **Design**: 
-
-<div style="display: flex; justify-content: center;">
-  <img src="Images/Design.png" alt="Image 2" style="width: 45%;"/>
-</div>
-<!-- ![Design ](Images/Design.png) -->
-
----
-
-### **Arhitecture**: 
-
-<div style="display: flex; justify-content: center;">
-  <img src="Images/Architecture.png" alt="Image 2" style="width: 45%;"/>
-</div>
-<!-- ![Architecture](./Images/Architecture.png) -->
-
----
-
-## Materials list:
-
-- ESP32 dev module 
-- RTC module: DS1302
-- SPI Ethernet module: W5500
-- RGB LED 
-- Button  
-- IR reciever and emitter 
-
----
-
-## Project structure 
-**- Include Folder**: 
-- conf.h : contains build flags that are use at compile time to enable & dispable certain modules <br>
-- Hardware.h: contains Pins defetions   <br>
-- ButtonModule.h : provides APIs to control button  <br> 
-- IR_Module.h : provides APis to control IR send and Receive <br>
-- Mylog.h: interface for intituitive logging functionalities <br>
-- mystorage.h: provides APIs to controll Little FS ( strorage system) <br>
-- network_stack.h : provides APIs for network functionalities. <br>
-- RGBModule.h : provides APIs functionalities to control RGB<br>
-- RTC_module.h: provides APIs functionalities to control RTC <br>
-- soft_version.h : macro that contains the firmware version<br>
-
-**- Src Folder**: 
-
-- this folder contains the main Fimware :`main.cpp` <br>
-- It also conatains the implemntation of the Other modules. <br> 
-- The WoL_Task is the implementation of the Wake On Lan task. <br>
-
-**- Test Folder**: 
-
-- Contains the testing firmwares for modules
-
-**- data Folder**: 
-
-- Contains json settings file that will be uploaded to the ESP32 board. 
-
-**- Makefile**: 
-
-- contains rules to automate the process of building and flashing the project. 
-
-**- Scripts**: 
-
-A folder that cotains python scripts that platformio uses it,
-
-we have a script to that instructs pio at build time to append the `version` at the end of the build output:  `firmware_1.1.0.bin`
-
-
-
-### Lib depends 
-```
-|-- RTC @ 2.4.2
-|-- ArduinoJson @ 6.20.1
-|-- IRremote @ 4.4.1
-|-- Ethernet @ 2.0.2
-|-- SPI @ 2.0.0
-|-- HTTPClient @ 2.0.0
-|-- LittleFS @ 2.0.0
-|-- Update @ 2.0.0
-|-- FS @ 2.0.0
-```
-
----
-
-## Usage 
-- clone the repo 
-- install the dependencies 
-- build the project 
-
----
-
-## Contribution rules: 
-To add a new feature you must follow these steps: 
-
-create a new branch withe the feature name  
-if the feature is new module implementation: ( new sensor): 
-- you must follow this structure 
- ```
-include:
------ module_name.h 
-src: 
------ module_name.cpp 
- ```
-
-> **Note For testing** 
-
-To test the module or the feature 
-
-create a new file in the src file called `test_module_name.cpp`  in platformio.ini  
-
- ```pio
-build_src_filter= +<test_module_name.cpp.cpp>   
- ```
-after testing you can move the test file in the test folder in comment out the build src flag in the platformio.ini then you can merge. 
-
-
-> **Note For commits** 
-
-please make your commits informative, that explains the changes that ypou have made. 
-
-
-## Testing Docker 
-- Building the Dockerfile
+### Clone and initialize dependencies
 
 ```bash
- sudo docker build -t starter-container . 
+git clone https://github.com/AzizHrz/screenFlex.git
+cd screenFlex
+git checkout aziz
+git submodule update --init --recursive
 ```
 
-- Running the docker container 
+### Build, flash, and monitor
 
-```bash 
- sudo docker run -it starter-container
+```bash
+pio run
+pio run --target upload
+pio device monitor -b 115200
 ```
 
+The repository also includes a `Makefile` for common tasks:
 
-##  TODO
-  
+```bash
+make build
+make flash
+make monitor
+```
+
+To upload the filesystem image:
+
+```bash
+pio run --target uploadfs
+```
+
+The PlatformIO environment is declared in `platformio.ini` and uses the `esp32doit-devkit-v1` target.
+
+## Network setup
+
+The firmware can use Ethernet or Wi-Fi. When Wi-Fi provisioning is required, it starts an ESP32 access point and a configuration web server.
+
+### Configure Wi-Fi through the setup portal
+
+1. Power on the ESP32.
+2. Connect your phone or computer to the ESP32 access point.
+3. Open `http://192.168.4.1` in a browser.
+4. Enter your Wi-Fi credentials and submit the form.
+5. After the ESP32 connects to the Wi-Fi network, use the IP shown in the portal or serial monitor to access the device.
+
+`192.168.4.1` is the access-point address used during setup. It is not the device's address on your local Wi-Fi network.
+
+If a hostname is configured in the firmware, you may also be able to access the device through:
+
+```text
+http://<mDNS-hostname>.local
+```
+
+## Device behavior
+
+### Infrared control
+
+At startup, the firmware checks LittleFS for saved IR data. If data is present, it loads the stored command for control. If no data is present, the device can enter capture mode to learn and save a command. Holding the setup button for several seconds clears the stored IR data and restarts the ESP32 so it can learn a new command.
+
+The IR module supports multiple protocols, including NEC, Samsung, LG, and pulse-distance formats.
+
+### MQTT control and schedules
+
+The firmware builds MQTT device topics from the registered user and token.
+
+| Topic | Purpose |
+|---|---|
+| `<user>/<token>/order` | Receives control orders |
+| `<user>/<token>/state` | Publishes the TV state |
+| `<user>/<token>/firmware` | Firmware-related messages |
+
+Control orders support:
+
+- `on` — turn the TV on
+- `off` — turn the TV off
+- `schedule` — decide the state based on the current RTC time and weekly schedule
+
+The schedule includes timezone settings, enabled weekdays, and time slots.
+
+## Project layout
+
+| Path | Purpose |
+|---|---|
+| `platformio.ini` | Build and environment configuration |
+| `include/` | Module interfaces and firmware configuration |
+| `src/` | Main firmware and implementation files |
+| `lib/` | Project libraries and submodules |
+| `data/` | LittleFS data files |
+| `test/` | Testing firmware and experiments |
+| `scripts/` | Helper scripts used by PlatformIO |
+| `Images/` | Project diagrams and visuals |
+| `docs/` | Generated documentation |
+| `Makefile` | Build, flash, and monitor shortcuts |
+
+## Dependencies
+
+PlatformIO declares the main libraries, including ArduinoJson and PubSubClient. Submodules provide the rest of the functionality for IR, Ethernet, RTC, and Wake-on-LAN support.
+
+Initialize them with:
+
+```bash
+git submodule update --init --recursive
+```
+
+## Contribution
+
+Use a feature branch for each change and keep commit messages clear and descriptive.
+
+---
+
+This project is for ESP32-based automation and TV control workflows. For hardware-specific questions, compare the wiring and pin map in `include/Hardware.h` with your actual device before flashing.
